@@ -19,7 +19,7 @@ enum SheetType {
 
 model Project {
   id        String   @id @default(cuid())
-  name      String   // e.g., "Project Pabrik Kongkie"
+  name      String   // e.g., "PROJECT PABRIK KONGKIE"
   company   String   // e.g., "PT. PCK"
   sheets    Sheet[]
   createdAt DateTime @default(now())
@@ -28,22 +28,26 @@ model Project {
 
 model Sheet {
   id           String        @id @default(cuid())
-  name         String        // e.g., "Kas", "Pembukuan Global"
+  name         String        // e.g., "Kas", "Pembukuan Gardu Listrik"
+  category     String?       // e.g., "Gardu", "Cool Storage", "Mess"
   type         SheetType     @default(DEBIT_CREDIT)
   projectId    String
   project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
+  @@unique([projectId, name])
 }
 
 model Transaction {
   id          String   @id @default(cuid())
-  date        DateTime // "Tanggal"
-  code        String   // "Kode" (e.g., MT, UM, UP)
-  description String   // "Keterangan"
-  debit       Decimal  @default(0) @db.Decimal(15, 2) // "Debet" (Money In)
-  credit      Decimal  @default(0) @db.Decimal(15, 2) // "Credit" (Money Out)
+  date        DateTime
+  code        String   // "MT", "UM", "UP", etc.
+  description String
+  category    String?  // Category tag (e.g., "Gardu")
+  debit       Decimal  @default(0) @db.Decimal(15, 2)
+  credit      Decimal  @default(0) @db.Decimal(15, 2)
   
   sheetId     String
   sheet       Sheet    @relation(fields: [sheetId], references: [id], onDelete: Cascade)
@@ -51,6 +55,5 @@ model Transaction {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // This index is critical for fast chronological sorting when calculating the running balance
-  @@index([sheetId, date]) 
+  @@index([sheetId, date])
 }
