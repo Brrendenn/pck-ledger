@@ -1,24 +1,22 @@
-// components/ledger/add-transaction-dialog.tsx
+// components/ledger/edit-transaction-dialog.tsx
 "use client";
 
 import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as z from "zod";
-import { Plus } from "lucide-react";
-
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { LedgerEntry } from "./columns";
 
-const formSchema = z.object({
+const editFormSchema = z.object({
   date: z.string().min(1, "Date is required"),
   code: z.string().min(1, "Code is required"),
   description: z.string().min(1, "Description is required"),
@@ -27,95 +25,61 @@ const formSchema = z.object({
   credit: z.number().min(0),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+interface EditTransactionDialogProps {
+  transaction: LedgerEntry;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  availableCategories?: string[];
+  isExpenseOnly?: boolean;
+}
 
-export function AddTransactionDialog({ sheetId }: { sheetId: string }) {
-  const [open, setOpen] = useState(false);
+export function EditTransactionDialog({
+  transaction,
+  open,
+  onOpenChange,
+  availableCategories = [],
+  isExpenseOnly = false,
+}: EditTransactionDialogProps) {
   const queryClient = useQueryClient();
 
-  const { data: sheetData } = useQuery({
-    queryKey: ["sheet", sheetId],
-    queryFn: async () => {
-      const res = await fetch(`/api/sheets/${sheetId}`);
-      if (!res.ok) return null;
-      return res.json();
-    },
-  });
+  const formattedDate = transaction.date
+    ? new Date(transaction.date).toISOString().split("T")[0]
+    : new Date().toISOString().split("T")[0];
 
-  const isExpenseOnly = sheetData?.type === "EXPENSE_ONLY";
-
-  const availableCategories: string[] =
-    sheetData?.project?.sheets
-      ?.map((s: any) => s.category)
-      .filter((c: any): c is string => Boolean(c)) || [];
-
-  // components/ledger/add-transaction-dialog.tsx
-  // Update the mutation block inside AddTransactionDialog:
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const response = await fetch("/api/transactions", {
-        method: "POST",
+    mutationFn: async (values: z.infer<typeof editFormSchema>) => {
+      const response = await fetch(`/api/transactions/${transaction.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
-          debit: isExpenseOnly ? 0 : values.debit,
           category: values.category || null,
-          sheetId,
+          debit: isExpenseOnly ? 0 : values.debit,
         }),
       });
-      if (!response.ok) throw new Error("Failed to create transaction");
+
+      if (!response.ok) throw new Error("Failed to update transaction");
       return response.json();
     },
-    onMutate: async (newEntry: FormValues) => {
-      await queryClient.cancelQueries({ queryKey: ["transactions", sheetId] });
-      const previous = queryClient.getQueryData<any[]>([
-        "transactions",
-        sheetId,
-      ]);
-
-      if (previous) {
-        const optimisticRow = {
-          id: `temp-${Date.now()}`,
-          sheetId,
-          date: new Date(newEntry.date),
-          code: newEntry.code,
-          description: newEntry.description,
-          category: newEntry.category || null,
-          debit: isExpenseOnly ? 0 : Number(newEntry.debit),
-          credit: Number(newEntry.credit),
-          saldo: 0,
-        };
-        queryClient.setQueryData<any[]>(
-          ["transactions", sheetId],
-          [...previous, optimisticRow],
-        );
-      }
-
-      return { previous };
-    },
-    onError: (_err, _newEntry, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(["transactions", sheetId], context.previous);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["transactions", sheetId] });
-      setOpen(false);
-      form.reset();
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["transactions", transaction.sheetId],
+      });
+      onOpenChange(false);
     },
   });
 
   const form = useForm({
     defaultValues: {
-      date: new Date().toISOString().split("T")[0],
-      code: "MT",
-      description: "",
-      category: "",
-      debit: 0,
-      credit: 0,
+      date: formattedDate,
+      code: transaction.code || "MT",
+      description: transaction.description || "",
+      category: transaction.category || "",
+      debit: Number(transaction.debit) || 0,
+      credit: Number(transaction.credit) || 0,
     },
     validators: {
-      onSubmit: formSchema,
+      onSubmit: editFormSchema,
     },
     onSubmit: async ({ value }) => {
       mutation.mutate(value);
@@ -123,21 +87,13 @@ export function AddTransactionDialog({ sheetId }: { sheetId: string }) {
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" /> Add Transaction
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-112.5">
         <DialogHeader>
-          <DialogTitle>
-            {isExpenseOnly ? "New Expense Entry" : "New Transaction"}
-          </DialogTitle>
+          <DialogTitle>Edit Transaction</DialogTitle>
           <DialogDescription>
-            {isExpenseOnly
-              ? "Record a project module expense."
-              : "Record a cash transaction. Select a category to auto-route expenses to module sheets."}
+            Update the transaction details. Balances will recalculate
+            automatically.
           </DialogDescription>
         </DialogHeader>
 
@@ -193,7 +149,6 @@ export function AddTransactionDialog({ sheetId }: { sheetId: string }) {
                   Description
                 </label>
                 <Input
-                  placeholder="Material (Cat Mowilex)..."
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
@@ -202,23 +157,20 @@ export function AddTransactionDialog({ sheetId }: { sheetId: string }) {
             )}
           />
 
-          {/* Show category routing dropdown only on master Debit/Credit sheets */}
           {!isExpenseOnly && availableCategories.length > 0 && (
             <form.Field
               name="category"
               children={(field) => (
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    Expense Category (Module Routing)
+                    Category Tag
                   </label>
                   <select
                     value={field.state.value}
                     onChange={(e) => field.handleChange(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-zinc-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 dark:border-zinc-800 dark:bg-zinc-950"
+                    className="flex h-9 w-full rounded-md border border-zinc-200 bg-white px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 dark:border-zinc-800 dark:bg-zinc-950"
                   >
-                    <option value="">
-                      -- No Category (Direct to Current Sheet) --
-                    </option>
+                    <option value="">-- No Category --</option>
                     {availableCategories.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
@@ -230,19 +182,17 @@ export function AddTransactionDialog({ sheetId }: { sheetId: string }) {
             />
           )}
 
-          {/* Dynamic Amount Inputs */}
           {isExpenseOnly ? (
             <form.Field
               name="credit"
               children={(field) => (
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    Amount / Pengeluaran (Rp)
+                    Amount / Pengeluaran
                   </label>
                   <Input
                     type="number"
                     step="0.01"
-                    placeholder="0"
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={(e) =>
@@ -259,12 +209,11 @@ export function AddTransactionDialog({ sheetId }: { sheetId: string }) {
                 children={(field) => (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                      Debit (Pemasukan)
+                      Debit (In)
                     </label>
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0"
                       value={field.state.value}
                       onBlur={field.handleBlur}
                       onChange={(e) =>
@@ -280,12 +229,11 @@ export function AddTransactionDialog({ sheetId }: { sheetId: string }) {
                 children={(field) => (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                      Credit (Pengeluaran)
+                      Credit (Out)
                     </label>
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder="0"
                       value={field.state.value}
                       onBlur={field.handleBlur}
                       onChange={(e) =>
@@ -302,15 +250,12 @@ export function AddTransactionDialog({ sheetId }: { sheetId: string }) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                form.reset();
-                setOpen(false);
-              }}
+              onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Saving..." : "Save Entry"}
+              {mutation.isPending ? "Updating..." : "Save Changes"}
             </Button>
           </div>
         </form>

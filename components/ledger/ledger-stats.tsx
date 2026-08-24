@@ -1,8 +1,14 @@
 // components/ledger/ledger-stats.tsx
-'use client';
+"use client";
 
-import { ArrowDownLeft, ArrowUpRight, Wallet, ReceiptText, Calculator } from 'lucide-react';
-import { LedgerEntry } from './columns';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Wallet,
+  ReceiptText,
+  Calculator,
+} from "lucide-react";
+import { LedgerEntry } from "./columns";
 
 interface LedgerStatsProps {
   data: LedgerEntry[];
@@ -10,9 +16,9 @@ interface LedgerStatsProps {
 }
 
 const formatCurrency = (val: number) =>
-  new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
     maximumFractionDigits: 0,
   }).format(val);
 
@@ -38,7 +44,9 @@ export function LedgerStats({ data, isExpenseOnly = false }: LedgerStatsProps) {
           <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
             {formatCurrency(totalCredit)}
           </div>
-          <p className="mt-1 text-xs text-zinc-500">Akumulasi seluruh biaya modul</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Akumulasi seluruh biaya modul
+          </p>
         </div>
 
         <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
@@ -53,7 +61,9 @@ export function LedgerStats({ data, isExpenseOnly = false }: LedgerStatsProps) {
           <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
             {count} Entri
           </div>
-          <p className="mt-1 text-xs text-zinc-500">Total catatan pengeluaran</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Total catatan pengeluaran
+          </p>
         </div>
 
         <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
@@ -68,7 +78,9 @@ export function LedgerStats({ data, isExpenseOnly = false }: LedgerStatsProps) {
           <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
             {formatCurrency(avgExpense)}
           </div>
-          <p className="mt-1 text-xs text-zinc-500">Rata-rata per catatan biaya</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Rata-rata per catatan biaya
+          </p>
         </div>
       </div>
     );
@@ -88,7 +100,9 @@ export function LedgerStats({ data, isExpenseOnly = false }: LedgerStatsProps) {
         <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
           {formatCurrency(totalDebit)}
         </div>
-        <p className="mt-1 text-xs text-zinc-500">Total incoming funds recorded</p>
+        <p className="mt-1 text-xs text-zinc-500">
+          Total incoming funds recorded
+        </p>
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
@@ -118,13 +132,15 @@ export function LedgerStats({ data, isExpenseOnly = false }: LedgerStatsProps) {
         <div
           className={`mt-2 text-xl font-bold tabular-nums ${
             currentSaldo >= 0
-              ? 'text-zinc-900 dark:text-zinc-50'
-              : 'text-rose-600 dark:text-rose-400'
+              ? "text-zinc-900 dark:text-zinc-50"
+              : "text-rose-600 dark:text-rose-400"
           }`}
         >
           {formatCurrency(currentSaldo)}
         </div>
-        <p className="mt-1 text-xs text-zinc-500">Net remaining sheet balance</p>
+        <p className="mt-1 text-xs text-zinc-500">
+          Net remaining sheet balance
+        </p>
       </div>
     </div>
   );

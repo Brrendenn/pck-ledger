@@ -1,10 +1,10 @@
 // components/layout/sidebar.tsx
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   FileSpreadsheet,
   Code2,
@@ -13,9 +13,9 @@ import {
   FolderClosed,
   FolderOpen,
   Trash2,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,20 +25,28 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
-  const [sheetToDelete, setSheetToDelete] = useState<{ id: string; name: string } | null>(null);
-  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [collapsedProjects, setCollapsedProjects] = useState<
+    Record<string, boolean>
+  >({});
+  const [sheetToDelete, setSheetToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const { data: projects } = useQuery({
-    queryKey: ['sidebar-projects'],
+    queryKey: ["sidebar-projects"],
     queryFn: async () => {
-      const res = await fetch('/api/projects');
+      const res = await fetch("/api/projects");
       if (!res.ok) return [];
       return res.json();
     },
@@ -46,16 +54,19 @@ export function Sidebar() {
 
   const deleteSheetMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/sheets/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete sheet');
+      const res = await fetch(`/api/sheets/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete sheet");
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sidebar-projects'] });
-      queryClient.invalidateQueries({ queryKey: ['sheet'] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["sheet"] });
 
-      if (data.projectDeleted || pathname === `/sheets/${data.deletedSheetId}`) {
-        router.replace('/');
+      if (
+        data.projectDeleted ||
+        pathname === `/sheets/${data.deletedSheetId}`
+      ) {
+        router.replace("/");
       }
       setSheetToDelete(null);
     },
@@ -63,14 +74,14 @@ export function Sidebar() {
 
   const deleteProjectMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete project');
+      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete project");
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sidebar-projects'] });
-      queryClient.invalidateQueries({ queryKey: ['sheet'] });
-      router.replace('/');
+      queryClient.invalidateQueries({ queryKey: ["sidebar-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["sheet"] });
+      router.replace("/");
       setProjectToDelete(null);
     },
   });
@@ -88,7 +99,7 @@ export function Sidebar() {
         <div className="mb-6 flex items-center gap-2 px-2">
           <Building2 className="h-5 w-5 text-zinc-800 dark:text-zinc-200" />
           <h1 className="text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            PCK Ledger
+            <a href="/">PCK Ledger</a>
           </h1>
         </div>
 
@@ -106,10 +117,9 @@ export function Sidebar() {
                 return (
                   <div key={project.id} className="group/project space-y-1">
                     <div className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50">
-                      <button
-                        type="button"
-                        onClick={() => toggleProject(project.id)}
-                        className="flex items-center gap-2 truncate text-left text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex-1"
+                      <Link
+                        href={`/projects/${project.id}`}
+                        className="flex items-center gap-2 truncate text-left text-xs font-semibold text-zinc-800 hover:text-blue-600 dark:text-zinc-200 dark:hover:text-blue-400 flex-1"
                       >
                         {isCollapsed ? (
                           <FolderClosed className="h-4 w-4 shrink-0 text-zinc-400" />
@@ -117,12 +127,17 @@ export function Sidebar() {
                           <FolderOpen className="h-4 w-4 shrink-0 text-zinc-500" />
                         )}
                         <span className="truncate">{project.name}</span>
-                      </button>
+                      </Link>
 
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => setProjectToDelete({ id: project.id, name: project.name })}
+                          onClick={() =>
+                            setProjectToDelete({
+                              id: project.id,
+                              name: project.name,
+                            })
+                          }
                           className="opacity-0 transition-opacity hover:text-red-600 group-hover/project:opacity-100 p-0.5"
                           title="Delete Project"
                         >
@@ -135,8 +150,8 @@ export function Sidebar() {
                         >
                           <ChevronDown
                             className={cn(
-                              'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
-                              isCollapsed && '-rotate-90'
+                              "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+                              isCollapsed && "-rotate-90",
                             )}
                           />
                         </button>
@@ -158,20 +173,28 @@ export function Sidebar() {
                               <div
                                 key={sheet.id}
                                 className={cn(
-                                  'group flex items-center justify-between rounded-md px-2 py-1.5 text-xs transition-colors',
+                                  "group flex items-center justify-between rounded-md px-2 py-1.5 text-xs transition-colors",
                                   isActive
-                                    ? 'bg-zinc-200/80 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
-                                    : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100'
+                                    ? "bg-zinc-200/80 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
+                                    : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100",
                                 )}
                               >
-                                <Link href={href} className="flex items-center gap-2 truncate flex-1">
+                                <Link
+                                  href={href}
+                                  className="flex items-center gap-2 truncate flex-1"
+                                >
                                   <FileSpreadsheet className="h-3 w-3 shrink-0" />
                                   <span className="truncate">{sheet.name}</span>
                                 </Link>
 
                                 <button
                                   type="button"
-                                  onClick={() => setSheetToDelete({ id: sheet.id, name: sheet.name })}
+                                  onClick={() =>
+                                    setSheetToDelete({
+                                      id: sheet.id,
+                                      name: sheet.name,
+                                    })
+                                  }
                                   className="opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
                                 >
                                   <Trash2 className="h-3 w-3" />
@@ -196,10 +219,10 @@ export function Sidebar() {
               <Link
                 href="/api-docs"
                 className={cn(
-                  'flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
-                  pathname === '/api-docs'
-                    ? 'bg-zinc-200/80 font-semibold text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
-                    : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100'
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                  pathname === "/api-docs"
+                    ? "bg-zinc-200/80 font-semibold text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
+                    : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100",
                 )}
               >
                 <Code2 className="h-3.5 w-3.5" />
@@ -217,13 +240,19 @@ export function Sidebar() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Sheet "{sheetToDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete Sheet "{sheetToDelete?.name}"?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this sheet and all associated transactions. If this is the last sheet, the parent project will also be removed.
+              This will permanently delete this sheet and all associated
+              transactions. If this is the last sheet, the parent project will
+              also be removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteSheetMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteSheetMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -232,7 +261,7 @@ export function Sidebar() {
               disabled={deleteSheetMutation.isPending}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {deleteSheetMutation.isPending ? 'Deleting...' : 'Delete Sheet'}
+              {deleteSheetMutation.isPending ? "Deleting..." : "Delete Sheet"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -245,22 +274,30 @@ export function Sidebar() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project "{projectToDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete Project "{projectToDelete?.name}"?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this project, all of its sheets, and all recorded transactions.
+              This will permanently delete this project, all of its sheets, and
+              all recorded transactions.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteProjectMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteProjectMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
-                if (projectToDelete) deleteProjectMutation.mutate(projectToDelete.id);
+                if (projectToDelete)
+                  deleteProjectMutation.mutate(projectToDelete.id);
               }}
               disabled={deleteProjectMutation.isPending}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {deleteProjectMutation.isPending ? 'Deleting...' : 'Delete Project'}
+              {deleteProjectMutation.isPending
+                ? "Deleting..."
+                : "Delete Project"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

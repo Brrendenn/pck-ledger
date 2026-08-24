@@ -1,34 +1,39 @@
 // app/sheets/[sheetId]/page.tsx
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'next/navigation';
-import { DataTable } from '@/components/ledger/data-table';
-import { getColumns } from '@/components/ledger/columns';
-import { AddTransactionDialog } from '@/components/ledger/add-transaction-dialog';
-import { ExportButtons } from '@/components/ledger/export-buttons';
-import { ImportExcelButton } from '@/components/ledger/import-excel-button';
-import { SheetTabs } from '@/components/ledger/sheet-tabs';
-import { LedgerStats } from '@/components/ledger/ledger-stats';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useParams } from "next/navigation";
+import { BarChart3 } from "lucide-react";
+import { DataTable } from "@/components/ledger/data-table";
+import { getColumns } from "@/components/ledger/columns";
+import { AddTransactionDialog } from "@/components/ledger/add-transaction-dialog";
+import { DownloadTemplateButton } from "@/components/ledger/download-template-button";
+import { ImportExcelButton } from "@/components/ledger/import-excel-button";
+import { SheetTabs } from "@/components/ledger/sheet-tabs";
+import { LedgerStats } from "@/components/ledger/ledger-stats";
+import { LedgerAnalytics } from "@/components/ledger/ledger-analytics";
+import { Button } from "@/components/ui/button";
 
 export default function LedgerPage() {
   const params = useParams();
   const sheetId = params.sheetId as string;
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   const { data: sheetData, isLoading: isSheetLoading } = useQuery({
-    queryKey: ['sheet', sheetId],
+    queryKey: ["sheet", sheetId],
     queryFn: async () => {
       const res = await fetch(`/api/sheets/${sheetId}`);
-      if (!res.ok) throw new Error('Failed to load sheet metadata');
+      if (!res.ok) throw new Error("Failed to load sheet metadata");
       return res.json();
     },
   });
 
   const { data: transactions, isLoading: isTxLoading } = useQuery({
-    queryKey: ['transactions', sheetId],
+    queryKey: ["transactions", sheetId],
     queryFn: async () => {
       const res = await fetch(`/api/transactions?sheetId=${sheetId}`);
-      if (!res.ok) throw new Error('Failed to fetch ledger data');
+      if (!res.ok) throw new Error("Failed to fetch ledger data");
       return res.json();
     },
   });
@@ -44,25 +49,50 @@ export default function LedgerPage() {
 
   const project = sheetData?.project;
   const sheets = project?.sheets || [];
-  const isExpenseOnly = sheetData?.type === 'EXPENSE_ONLY';
-  const tableColumns = getColumns(isExpenseOnly);
+  const isExpenseOnly = sheetData?.type === "EXPENSE_ONLY";
+
+  const availableCategories: string[] = sheets
+    .map((s: any) => s.category)
+    .filter((c: any): c is string => Boolean(c));
+
+  const tableColumns = getColumns(isExpenseOnly, availableCategories);
 
   return (
     <div className="flex flex-col gap-6">
       {/* Title Header */}
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50">
-        <h2 className="text-sm font-semibold tracking-wider uppercase text-zinc-500">
-          {project?.company || 'PT. PCK'}
-        </h2>
-        <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-          {project?.name || 'PROJECT PABRIK KONGKIE'}
-        </h1>
+      <div className="flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50/50 p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50">
+        <div>
+          <h2 className="text-xs font-semibold tracking-wider uppercase text-zinc-500">
+            {project?.company || "PT. PCK"}
+          </h2>
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            {project?.name || "PROJECT PABRIK KONGKIE"}
+          </h1>
+        </div>
+
+        <Button
+          variant={showAnalytics ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowAnalytics((prev) => !prev)}
+          className="gap-2 text-xs"
+        >
+          <BarChart3 className="h-3.5 w-3.5" />
+          {showAnalytics ? "Hide Charts" : "Show Analytics"}
+        </Button>
       </div>
+
+      {/* Visual Analytics Charts */}
+      {showAnalytics && (
+        <LedgerAnalytics
+          data={transactions || []}
+          isExpenseOnly={isExpenseOnly}
+        />
+      )}
 
       {/* Summary KPI Cards */}
       <LedgerStats data={transactions || []} isExpenseOnly={isExpenseOnly} />
 
-      {/* Workbook Tab & Table */}
+      {/* Workbook Container */}
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <SheetTabs sheets={sheets} projectId={project?.id} />
 
@@ -70,23 +100,31 @@ export default function LedgerPage() {
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                {sheetData?.name || 'Ledger'}
+                {sheetData?.name || "Ledger"}
               </h3>
               <p className="text-xs text-zinc-500">
                 {isExpenseOnly
-                  ? 'Module Expense Sheet (Cumulative Sum)'
-                  : 'Master Cash Ledger (Debit & Credit)'}
+                  ? "Module Expense Sheet (Cumulative Sum)"
+                  : "Master Cash Ledger (Debit & Credit)"}
               </p>
             </div>
 
             <div className="flex items-center gap-2">
+              <DownloadTemplateButton
+                sheetName={sheetData?.name || "Ledger"}
+                isExpenseOnly={isExpenseOnly}
+              />
               <ImportExcelButton sheetId={sheetId} />
-              <ExportButtons data={transactions || []} sheetName={sheetData?.name || 'Ledger'} />
               <AddTransactionDialog sheetId={sheetId} />
             </div>
           </div>
 
-          <DataTable columns={tableColumns} data={transactions || []} />
+          <DataTable
+            columns={tableColumns}
+            data={transactions || []}
+            sheetId={sheetId}
+            sheetName={sheetData?.name || "Ledger"}
+          />
         </div>
       </div>
     </div>
