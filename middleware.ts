@@ -17,10 +17,9 @@ export async function middleware(request: NextRequest) {
     request.cookies.get("__Secure-next-auth.session-token")?.value;
 
   const isAuthRoute = pathname.startsWith("/api/auth") || pathname === "/login";
-  const isPublicDocRoute = pathname === "/api-docs";
 
   // Redirect unauthenticated requests to /login
-  if (!token && !isAuthRoute && !isPublicDocRoute) {
+  if (!token && !isAuthRoute) {
     if (pathname.startsWith("/api")) {
       return NextResponse.json(
         { error: "Unauthorized", message: "Authentication required" },

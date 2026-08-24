@@ -1,8 +1,13 @@
 // app/api-docs/page.tsx
-import { openApiSpec } from '@/lib/openapi-spec';
-import { ReactSwagger } from '@/components/docs/react-swagger';
+import { openApiSpec } from "@/lib/openapi-spec";
+import { ReactSwagger } from "@/components/docs/react-swagger";
+import { notFound } from "next/navigation";
 
 export default function ApiDocsPage() {
+  if (process.env.NODE_ENV === "production") {
+    notFound();
+  }
+
   return (
     <div className="space-y-6">
       <div>
