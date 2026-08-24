@@ -247,25 +247,20 @@ export function Sidebar() {
             </div>
           </div>
 
-          <div>
-            <div className="px-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Developer Tools
-            </div>
-            <div className="mt-2 space-y-1">
+          {process.env.NODE_ENV !== "production" && (
+            <div className="space-y-1">
+              <p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                Developer
+              </p>
               <Link
                 href="/api-docs"
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                  pathname === "/api-docs"
-                    ? "bg-zinc-200/80 font-semibold text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
-                    : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100",
-                )}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-600 hover:bg-zinc-200/50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100"
               >
                 <Code2 className="h-3.5 w-3.5" />
-                API Explorer (Swagger)
+                <span>API Documentation</span>
               </Link>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
