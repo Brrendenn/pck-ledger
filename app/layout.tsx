@@ -1,31 +1,31 @@
+// app/layout.tsx
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { Providers } from "@/components/providers/providers";
 import { Sidebar } from "@/components/layout/sidebar";
-import { QueryProvider } from '@/components/providers/query-provider';
 
-// Inter is excellent for data-dense financial applications
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Ledger Pro | Financial Tracking",
-  description: "Modern project expense and ledger tracking.",
+  title: "PCK Ledger",
+  description: "Enterprise Multi-Project Financial Management",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="en" className="antialiased">
+    <html lang="en">
       <body className={inter.className}>
-        <QueryProvider>
-          <div className="flex min-h-screen bg-white dark:bg-zinc-950">
+        <Providers>
+          <div className="flex h-screen overflow-hidden bg-white dark:bg-zinc-950">
             <Sidebar />
-            <main className="flex-1 overflow-y-auto">
-              <div className="mx-auto max-w-7xl px-8 py-10">
-                {children}
-              </div>
-            </main>
+            <main className="flex-1 overflow-y-auto p-8">{children}</main>
           </div>
-        </QueryProvider>
+        </Providers>
       </body>
     </html>
   );
