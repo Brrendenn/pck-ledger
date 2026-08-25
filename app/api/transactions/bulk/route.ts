@@ -33,45 +33,60 @@ export async function POST(request: Request) {
 
     const isExpenseOnly = sheet.type === "EXPENSE_ONLY";
 
-    await prisma.$transaction(async (tx) => {
-      for (const t of transactions) {
-        await tx.transaction.create({
-          data: {
+    // 1. Prepare batch records in memory without network overhead
+    const primaryRecords: any[] = [];
+    const routedRecords: any[] = [];
+
+    for (const t of transactions) {
+      primaryRecords.push({
+        date: t.date,
+        code: t.code,
+        description: t.description,
+        category: t.category || null,
+        debit: isExpenseOnly ? 0 : t.debit,
+        credit: t.credit,
+        sheetId,
+      });
+
+      // Module category routing
+      if (t.category && t.credit > 0) {
+        const targetSheet = sheet.project.sheets.find(
+          (s) =>
+            s.id !== sheet.id &&
+            (s.category?.toLowerCase() === t.category?.toLowerCase() ||
+              s.name.toLowerCase().includes(t.category?.toLowerCase() || "")),
+        );
+
+        if (targetSheet) {
+          routedRecords.push({
             date: t.date,
             code: t.code,
-            description: t.description,
+            description: `[From ${sheet.name}] ${t.description}`,
             category: t.category,
-            debit: isExpenseOnly ? 0 : t.debit,
+            debit: 0,
             credit: t.credit,
-            sheetId,
-          },
-        });
-
-        // Route to category module sheet if applicable
-        if (t.category && t.credit > 0) {
-          const targetSheet = sheet.project.sheets.find(
-            (s) =>
-              s.id !== sheet.id &&
-              (s.category?.toLowerCase() === t.category?.toLowerCase() ||
-                s.name.toLowerCase().includes(t.category?.toLowerCase() || "")),
-          );
-
-          if (targetSheet) {
-            await tx.transaction.create({
-              data: {
-                date: t.date,
-                code: t.code,
-                description: `[From ${sheet.name}] ${t.description}`,
-                category: t.category,
-                debit: 0,
-                credit: t.credit,
-                sheetId: targetSheet.id,
-              },
-            });
-          }
+            sheetId: targetSheet.id,
+          });
         }
       }
-    });
+    }
+
+    const allRecordsToInsert = [...primaryRecords, ...routedRecords];
+
+    // 2. Execute single batch query inside transaction with 30s timeout
+    await prisma.$transaction(
+      async (tx) => {
+        if (allRecordsToInsert.length > 0) {
+          await tx.transaction.createMany({
+            data: allRecordsToInsert,
+          });
+        }
+      },
+      {
+        maxWait: 10000,
+        timeout: 30000,
+      },
+    );
 
     return NextResponse.json({ success: true, count: transactions.length });
   } catch (error) {
