@@ -4,11 +4,13 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
+import { verifyOTP } from "@/lib/otp";
 import { z } from "zod";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(1),
+  otp: z.string().length(6),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -23,22 +25,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        otp: { label: "OTP", type: "text" },
       },
       async authorize(credentials) {
         const parsed = credentialsSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
+        const { email, password, otp } = parsed.data;
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanOtp = otp.trim();
+
         const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
+          where: { email: cleanEmail },
         });
 
         if (!user || !user.password) return null;
 
-        const isValid = await bcrypt.compare(
-          parsed.data.password,
-          user.password,
-        );
-        if (!isValid) return null;
+        // 1. Verify Password
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) return null;
+
+        // 2. Verify 2FA OTP
+        const isOtpValid = await verifyOTP(cleanEmail, cleanOtp);
+        if (!isOtpValid) return null;
 
         return {
           id: user.id,
