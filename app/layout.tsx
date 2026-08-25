@@ -11,6 +11,10 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "PCK Ledger",
   description: "Enterprise Multi-Project Financial Management",
+  icons: {
+    icon: "/favicon.ico", // or '/icon.png'
+    apple: "/apple-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
