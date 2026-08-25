@@ -10,30 +10,36 @@ const redis = new Redis({
 
 export async function generateAndSendOTP(email: string): Promise<boolean> {
   const cleanEmail = email.trim().toLowerCase();
-  const user = process.env.SMTP_EMAIL;
-  const pass = process.env.SMTP_PASSWORD;
+  const user = process.env.SMTP_EMAIL?.trim();
+  const pass = process.env.SMTP_PASSWORD?.trim();
 
   if (!user || !pass) {
-    console.error("SMTP Error: SMTP_EMAIL or SMTP_PASSWORD is not configured.");
+    console.error("SMTP Error: SMTP_EMAIL or SMTP_PASSWORD is not set.");
     return false;
   }
 
+  // Create transporter with explicit host, port 465 (SSL), and connection timeouts
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true, // SSL
     auth: {
-      user: user.trim(),
-      pass: pass.trim(),
+      user,
+      pass,
     },
+    connectionTimeout: 7000, // 7s timeout
+    greetingTimeout: 5000,
+    socketTimeout: 7000,
   });
 
   const otp = crypto.randomInt(100000, 999999).toString();
 
-  // Store in Upstash Redis for 5 minutes (300 seconds)
+  // Store in Redis with a 5-minute TTL
   await redis.set(`otp:${cleanEmail}`, otp, { ex: 300 });
 
   try {
     await transporter.sendMail({
-      from: `"PCK Security" <${user.trim()}>`,
+      from: `"PCK Security" <${user}>`,
       to: cleanEmail,
       subject: `Your PCK Ledger Verification Code: ${otp}`,
       html: `
@@ -48,8 +54,8 @@ export async function generateAndSendOTP(email: string): Promise<boolean> {
       `,
     });
     return true;
-  } catch (error) {
-    console.error("Failed to send OTP email via Gmail SMTP:", error);
+  } catch (error: any) {
+    console.error("Nodemailer dispatch error:", error?.message || error);
     return false;
   }
 }
@@ -66,12 +72,10 @@ export async function verifyOTP(
     return false;
   }
 
-  // Coerce both to trimmed strings to avoid number vs string inequality
   if (String(storedOtp).trim() !== String(submittedOtp).trim()) {
     return false;
   }
 
-  // Invalidate OTP after successful check
   await redis.del(key);
   return true;
 }
