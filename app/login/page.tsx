@@ -4,14 +4,12 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Building2, Lock, Mail, UserPlus, LogIn } from "lucide-react";
+import { Building2, Lock, Mail, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,21 +20,6 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    if (isRegisterMode) {
-      const res = await fetch("/api/auth/register-initial", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Failed to setup admin account");
-        setLoading(false);
-        return;
-      }
-    }
-
     const res = await signIn("credentials", {
       email,
       password,
@@ -44,7 +27,7 @@ export default function LoginPage() {
     });
 
     if (res?.error) {
-      setError("Invalid email or password.");
+      setError("Invalid credentials.");
       setLoading(false);
     } else {
       router.push("/");
@@ -60,14 +43,10 @@ export default function LoginPage() {
             <Building2 className="h-6 w-6" />
           </div>
           <h1 className="mt-4 text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            {isRegisterMode
-              ? "Setup Initial Admin"
-              : "PCK Ledger Authentication"}
+            PCK Ledger
           </h1>
           <p className="mt-1 text-xs text-zinc-500">
-            {isRegisterMode
-              ? "Initialize the first workspace administrator."
-              : "Enter your account credentials to access workbooks."}
+            Private workspace. Sign in to access your ledger.
           </p>
         </div>
 
@@ -78,20 +57,6 @@ export default function LoginPage() {
         )}
 
         <form onSubmit={handleLogin} className="space-y-4">
-          {isRegisterMode && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                Name
-              </label>
-              <Input
-                placeholder="Admin Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-          )}
-
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
               Email Address
@@ -129,10 +94,6 @@ export default function LoginPage() {
           <Button type="submit" disabled={loading} className="w-full text-xs">
             {loading ? (
               "Authenticating..."
-            ) : isRegisterMode ? (
-              <span className="flex items-center gap-2">
-                <UserPlus className="h-3.5 w-3.5" /> Initialize Account
-              </span>
             ) : (
               <span className="flex items-center gap-2">
                 <LogIn className="h-3.5 w-3.5" /> Sign In
@@ -140,21 +101,6 @@ export default function LoginPage() {
             )}
           </Button>
         </form>
-
-        <div className="border-t border-zinc-100 pt-4 text-center dark:border-zinc-800">
-          <button
-            type="button"
-            onClick={() => {
-              setIsRegisterMode(!isRegisterMode);
-              setError("");
-            }}
-            className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
-          >
-            {isRegisterMode
-              ? "Already have an account? Sign in"
-              : "First time setup? Create Admin"}
-          </button>
-        </div>
       </div>
     </div>
   );
