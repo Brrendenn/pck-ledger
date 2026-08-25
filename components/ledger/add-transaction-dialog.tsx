@@ -2,317 +2,277 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "@tanstack/react-form";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import * as z from "zod";
-import { Plus } from "lucide-react";
-
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Plus,
+  Calendar,
+  DollarSign,
+  Tag,
+  FileText,
+  Loader2,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-const formSchema = z.object({
-  date: z.string().min(1, "Date is required"),
-  code: z.string().min(1, "Code is required"),
-  description: z.string().min(1, "Description is required"),
-  category: z.string(),
-  debit: z.number().min(0),
-  credit: z.number().min(0),
-});
+interface AddTransactionDialogProps {
+  sheetId: string;
+  sheetType?: "EXPENSE_ONLY" | "DEBIT_CREDIT";
+  defaultCategory?: string | null;
+  triggerButton?: React.ReactNode;
+}
 
-type FormValues = z.infer<typeof formSchema>;
+const TRANSACTION_CODES = [
+  "MT",
+  "UP",
+  "OGK",
+  "BS",
+  "KOP",
+  "MKN",
+  "LST",
+  "SEW",
+  "OTH",
+];
 
-export function AddTransactionDialog({ sheetId }: { sheetId: string }) {
+export function AddTransactionDialog({
+  sheetId,
+  sheetType = "DEBIT_CREDIT",
+  defaultCategory = null,
+  triggerButton,
+}: AddTransactionDialogProps) {
   const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [code, setCode] = useState("MT");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState(defaultCategory || "");
+  const [amount, setAmount] = useState("");
+  const [type, setType] = useState<"CREDIT" | "DEBIT">("CREDIT");
+  const [error, setError] = useState("");
+
   const queryClient = useQueryClient();
 
-  const { data: sheetData } = useQuery({
-    queryKey: ["sheet", sheetId],
-    queryFn: async () => {
-      const res = await fetch(`/api/sheets/${sheetId}`);
-      if (!res.ok) return null;
-      return res.json();
-    },
-  });
-
-  const isExpenseOnly = sheetData?.type === "EXPENSE_ONLY";
-
-  const availableCategories: string[] =
-    sheetData?.project?.sheets
-      ?.map((s: any) => s.category)
-      .filter((c: any): c is string => Boolean(c)) || [];
-
-  // components/ledger/add-transaction-dialog.tsx
-  // Update the mutation block inside AddTransactionDialog:
   const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const response = await fetch("/api/transactions", {
+    mutationFn: async (payload: any) => {
+      const res = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...values,
-          debit: isExpenseOnly ? 0 : values.debit,
-          category: values.category || null,
-          sheetId,
-        }),
+        body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Failed to create transaction");
-      return response.json();
-    },
-    onMutate: async (newEntry: FormValues) => {
-      await queryClient.cancelQueries({ queryKey: ["transactions", sheetId] });
-      const previous = queryClient.getQueryData<any[]>([
-        "transactions",
-        sheetId,
-      ]);
-
-      if (previous) {
-        const optimisticRow = {
-          id: `temp-${Date.now()}`,
-          sheetId,
-          date: new Date(newEntry.date),
-          code: newEntry.code,
-          description: newEntry.description,
-          category: newEntry.category || null,
-          debit: isExpenseOnly ? 0 : Number(newEntry.debit),
-          credit: Number(newEntry.credit),
-          saldo: 0,
-        };
-        queryClient.setQueryData<any[]>(
-          ["transactions", sheetId],
-          [...previous, optimisticRow],
-        );
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Failed to add entry");
       }
-
-      return { previous };
+      return res.json();
     },
-    onError: (_err, _newEntry, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(["transactions", sheetId], context.previous);
-      }
-    },
-    onSettled: () => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", sheetId] });
+      queryClient.invalidateQueries({ queryKey: ["project-summary"] });
       setOpen(false);
-      form.reset();
+      setDescription("");
+      setAmount("");
+      setError("");
     },
   });
 
-  const form = useForm({
-    defaultValues: {
-      date: new Date().toISOString().split("T")[0],
-      code: "MT",
-      description: "",
-      category: "",
-      debit: 0,
-      credit: 0,
-    },
-    validators: {
-      onSubmit: formSchema,
-    },
-    onSubmit: async ({ value }) => {
-      mutation.mutate(value);
-    },
-  });
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    const numericAmount = parseFloat(amount.replace(/[^0-9]/g, ""));
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      setError("Please enter a valid amount.");
+      return;
+    }
+
+    mutation.mutate({
+      sheetId,
+      date: `${date}T12:00:00.000Z`,
+      code,
+      description,
+      category: category.trim() || null,
+      debit:
+        sheetType === "EXPENSE_ONLY" ? 0 : type === "DEBIT" ? numericAmount : 0,
+      credit:
+        sheetType === "EXPENSE_ONLY"
+          ? numericAmount
+          : type === "CREDIT"
+            ? numericAmount
+            : 0,
+    });
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, "");
+    if (!raw) {
+      setAmount("");
+      return;
+    }
+    setAmount(new Intl.NumberFormat("id-ID").format(Number(raw)));
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" /> Add Transaction
-        </Button>
+        {triggerButton || (
+          <Button size="sm" className="gap-1.5 text-xs font-semibold">
+            <Plus className="h-4 w-4" /> Add Transaction
+          </Button>
+        )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-112.5">
+
+      <DialogContent className="max-h-[92vh] w-[92%] max-w-md overflow-y-auto rounded-xl p-5 sm:w-full">
         <DialogHeader>
-          <DialogTitle>
-            {isExpenseOnly ? "New Expense Entry" : "New Transaction"}
+          <DialogTitle className="text-base font-bold text-zinc-900 dark:text-zinc-50">
+            {sheetType === "EXPENSE_ONLY"
+              ? "Record Expense"
+              : "Add Cash Transaction"}
           </DialogTitle>
-          <DialogDescription>
-            {isExpenseOnly
-              ? "Record a project module expense."
-              : "Record a cash transaction. Select a category to auto-route expenses to module sheets."}
-          </DialogDescription>
         </DialogHeader>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            form.handleSubmit();
-          }}
-          className="space-y-4"
-        >
-          <div className="grid grid-cols-2 gap-4">
-            <form.Field
-              name="date"
-              children={(field) => (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    Date
-                  </label>
-                  <Input
-                    type="date"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                  />
-                </div>
-              )}
-            />
-
-            <form.Field
-              name="code"
-              children={(field) => (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    Code
-                  </label>
-                  <Input
-                    placeholder="MT, UM, UP"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                  />
-                </div>
-              )}
-            />
+        {error && (
+          <div className="rounded-md bg-rose-50 p-2.5 text-xs text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
+            {error}
           </div>
+        )}
 
-          <form.Field
-            name="description"
-            children={(field) => (
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Description
-                </label>
-                <Input
-                  placeholder="Material (Cat Mowilex)..."
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-              </div>
-            )}
-          />
-
-          {/* Show category routing dropdown only on master Debit/Credit sheets */}
-          {!isExpenseOnly && availableCategories.length > 0 && (
-            <form.Field
-              name="category"
-              children={(field) => (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    Expense Category (Module Routing)
-                  </label>
-                  <select
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-zinc-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 dark:border-zinc-800 dark:bg-zinc-950"
-                  >
-                    <option value="">
-                      -- No Category (Direct to Current Sheet) --
-                    </option>
-                    {availableCategories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            />
-          )}
-
-          {/* Dynamic Amount Inputs */}
-          {isExpenseOnly ? (
-            <form.Field
-              name="credit"
-              children={(field) => (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    Amount / Pengeluaran (Rp)
-                  </label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="0"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) =>
-                      field.handleChange(parseFloat(e.target.value) || 0)
-                    }
-                  />
-                </div>
-              )}
-            />
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
-              <form.Field
-                name="debit"
-                children={(field) => (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                      Debit (Pemasukan)
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) =>
-                        field.handleChange(parseFloat(e.target.value) || 0)
-                      }
-                    />
-                  </div>
-                )}
-              />
-
-              <form.Field
-                name="credit"
-                children={(field) => (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                      Credit (Pengeluaran)
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) =>
-                        field.handleChange(parseFloat(e.target.value) || 0)
-                      }
-                    />
-                  </div>
-                )}
-              />
+        <form onSubmit={handleSubmit} className="mt-3 space-y-4">
+          {/* Type Selector (Only if Master Kas) */}
+          {sheetType === "DEBIT_CREDIT" && (
+            <div className="grid grid-cols-2 gap-2 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-900">
+              <button
+                type="button"
+                onClick={() => setType("CREDIT")}
+                className={`rounded-md py-1.5 text-xs font-semibold transition-colors ${
+                  type === "CREDIT"
+                    ? "bg-white text-rose-600 shadow-sm dark:bg-zinc-800 dark:text-rose-400"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                }`}
+              >
+                Pengeluaran (Credit)
+              </button>
+              <button
+                type="button"
+                onClick={() => setType("DEBIT")}
+                className={`rounded-md py-1.5 text-xs font-semibold transition-colors ${
+                  type === "DEBIT"
+                    ? "bg-white text-emerald-600 shadow-sm dark:bg-zinc-800 dark:text-emerald-400"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                }`}
+              >
+                Pemasukan (Debet)
+              </button>
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                form.reset();
-                setOpen(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Saving..." : "Save Entry"}
-            </Button>
+          {/* Amount Field with Mobile NumPad Trigger */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              Nominal (Rp)
+            </label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="0"
+                value={amount}
+                onChange={handleAmountChange}
+                className="pl-9 text-base font-semibold tabular-nums sm:text-sm"
+                required
+                autoFocus
+              />
+            </div>
           </div>
+
+          {/* Date & Code Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                Tanggal
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-400" />
+                <Input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="pl-8 text-xs"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                Kode
+              </label>
+              <select
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-900 focus:border-zinc-950 focus:outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50"
+              >
+                {TRANSACTION_CODES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              Keterangan
+            </label>
+            <div className="relative">
+              <FileText className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-400" />
+              <Input
+                placeholder="e.g. Pembelian Semen Padang"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="pl-8 text-xs"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Category Tag */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              Kategori / Sub-Module (Optional)
+            </label>
+            <div className="relative">
+              <Tag className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-400" />
+              <Input
+                placeholder="e.g. Besi, Utilitas, Operasional"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="pl-8 text-xs"
+              />
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={mutation.isPending}
+            className="w-full text-xs font-semibold py-2.5"
+          >
+            {mutation.isPending ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Saving...
+              </span>
+            ) : (
+              "Save Entry"
+            )}
+          </Button>
         </form>
       </DialogContent>
     </Dialog>
