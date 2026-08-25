@@ -1,66 +1,87 @@
 // app/api/transactions/bulk/route.ts
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { z } from "zod";
 
-const singleTxSchema = z.object({
-  date: z.any().transform((val) => {
-    const d = new Date(val);
-    return isNaN(d.getTime()) ? new Date() : d;
-  }),
-  code: z.any().transform((val) => (val ? String(val).trim() : '-')),
-  description: z.any().transform((val) => (val ? String(val).trim() : '')),
-  category: z.any().transform((val) => (val ? String(val).trim() : null)).optional(),
-  debit: z.any().transform((val) => {
-    const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
-    return isNaN(num) ? 0 : Math.max(0, num);
-  }),
-  credit: z.any().transform((val) => {
-    const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.-]+/g, ''));
-    return isNaN(num) ? 0 : Math.max(0, num);
-  }),
-});
-
-const bulkTransactionSchema = z.object({
-  sheetId: z.string().min(1, 'Sheet ID is required'),
-  transactions: z.array(singleTxSchema),
+const bulkSchema = z.object({
+  sheetId: z.string().min(1),
+  transactions: z.array(
+    z.object({
+      date: z.string().transform((str) => new Date(str)),
+      code: z.string().default("MT"),
+      description: z.string().min(1),
+      category: z.string().nullable().optional(),
+      debit: z.number().default(0),
+      credit: z.number().default(0),
+    }),
+  ),
 });
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { sheetId, transactions } = bulkTransactionSchema.parse(body);
+    const { sheetId, transactions } = bulkSchema.parse(body);
 
-    const validRecords = transactions
-      .filter((t) => t.description.length > 0)
-      .map((t) => ({
-        sheetId,
-        date: t.date,
-        code: t.code,
-        description: t.description,
-        category: t.category ?? null,
-        debit: t.debit,
-        credit: t.credit,
-      }));
-
-    if (validRecords.length === 0) {
-      return NextResponse.json(
-        { error: 'No valid rows found to import. Check that your spreadsheet has description/keterangan entries.' },
-        { status: 400 }
-      );
-    }
-
-    const result = await prisma.transaction.createMany({
-      data: validRecords,
+    const sheet = await prisma.sheet.findUnique({
+      where: { id: sheetId },
+      include: { project: { include: { sheets: true } } },
     });
 
-    return NextResponse.json({ count: result.count }, { status: 201 });
+    if (!sheet) {
+      return NextResponse.json({ error: "Sheet not found" }, { status: 404 });
+    }
+
+    const isExpenseOnly = sheet.type === "EXPENSE_ONLY";
+
+    await prisma.$transaction(async (tx) => {
+      for (const t of transactions) {
+        await tx.transaction.create({
+          data: {
+            date: t.date,
+            code: t.code,
+            description: t.description,
+            category: t.category,
+            debit: isExpenseOnly ? 0 : t.debit,
+            credit: t.credit,
+            sheetId,
+          },
+        });
+
+        // Route to category module sheet if applicable
+        if (t.category && t.credit > 0) {
+          const targetSheet = sheet.project.sheets.find(
+            (s) =>
+              s.id !== sheet.id &&
+              (s.category?.toLowerCase() === t.category?.toLowerCase() ||
+                s.name.toLowerCase().includes(t.category?.toLowerCase() || "")),
+          );
+
+          if (targetSheet) {
+            await tx.transaction.create({
+              data: {
+                date: t.date,
+                code: t.code,
+                description: `[From ${sheet.name}] ${t.description}`,
+                category: t.category,
+                debit: 0,
+                credit: t.credit,
+                sheetId: targetSheet.id,
+              },
+            });
+          }
+        }
+      }
+    });
+
+    return NextResponse.json({ success: true, count: transactions.length });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('Validation errors:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.issues }, { status: 400 });
     }
-    console.error('Failed to bulk import transactions:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error("Failed bulk transactions:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

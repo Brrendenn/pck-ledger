@@ -1,141 +1,147 @@
 // components/ledger/import-excel-button.tsx
-'use client';
+"use client";
 
-import { useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Upload } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState, useRef } from "react";
+import * as XLSX from "xlsx";
+import { Upload, Loader2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { normalizeExcelDate } from "@/lib/date-utils";
 
 interface ImportExcelButtonProps {
   sheetId: string;
 }
 
-const cleanNumber = (val: any): number => {
-  if (val === undefined || val === null || val === '' || val === '-') return 0;
-  if (typeof val === 'number') return isNaN(val) ? 0 : val;
-  const cleaned = String(val).replace(/[^0-9.-]+/g, '');
-  const parsed = parseFloat(cleaned);
-  return isNaN(parsed) ? 0 : parsed;
-};
-
-const findKey = (row: Record<string, any>, possibleKeys: string[]) => {
-  const keys = Object.keys(row);
-  for (const candidate of possibleKeys) {
-    const found = keys.find((k) => k.trim().toLowerCase() === candidate.toLowerCase());
-    if (found !== undefined) return row[found];
-  }
-  return undefined;
-};
-
 export function ImportExcelButton({ sheetId }: ImportExcelButtonProps) {
+  const [isParsing, setIsParsing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const queryClient = useQueryClient();
 
-  const mutation = useMutation({
-    mutationFn: async (transactions: any[]) => {
-      const response = await fetch('/api/transactions/bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sheetId, transactions }),
+  const bulkMutation = useMutation({
+    mutationFn: async (rows: any[]) => {
+      const res = await fetch("/api/transactions/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sheetId, transactions: rows }),
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error ? JSON.stringify(data.error) : 'Bulk import failed');
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to import transactions");
       }
-      return data;
+      return res.json();
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['transactions', sheetId] });
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setIsProcessing(false);
-      alert(`Successfully imported ${data.count} transactions!`);
-    },
-    onError: (err: any) => {
-      console.error('Import error:', err);
-      alert(`Import failed: ${err.message}`);
-      setIsProcessing(false);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions", sheetId] });
+      if (fileInputRef.current) fileInputRef.current.value = "";
     },
   });
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsProcessing(true);
-    const reader = new FileReader();
+    setIsParsing(true);
 
-    reader.onload = (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const workbook = XLSX.read(bstr, { type: 'binary', cellDates: true });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
+    try {
+      const data = await file.arrayBuffer();
+      // Parse workbook without auto-converting to local midnight dates
+      const workbook = XLSX.read(data, {
+        type: "array",
+        cellDates: false, // Prevents automatic timezone degradation
+      });
 
-        const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, {
-          defval: '',
-        });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, {
+        raw: true,
+        defval: "",
+      });
 
-        const parsedData = rawRows
-          .map((row) => {
-            const dateVal = findKey(row, ['Tanggal', 'Tgl', 'Date', 'Waktu']);
-            const codeVal = findKey(row, ['Kode', 'Code', 'Kd']);
-            const descVal = findKey(row, ['Keterangan', 'Deskripsi', 'Description', 'Uraian', 'Item']);
-            const catVal = findKey(row, ['Kategori', 'Category', 'Kat']);
-            const debitVal = findKey(row, ['Debet', 'Debit', 'Masuk', 'In', 'Inflow']);
-            const creditVal = findKey(row, ['Credit', 'Kredit', 'Keluar', 'Out', 'Outflow', 'Biaya', 'Pengeluaran']);
+      const parsedRows = jsonData
+        .map((row) => {
+          // Normalize header variations
+          const rawDate = row.Tanggal || row.tanggal || row.Date || row.date;
+          const rawCode = row.Kode || row.kode || row.Code || row.code || "MT";
+          const rawDesc =
+            row.Keterangan ||
+            row.keterangan ||
+            row.Description ||
+            row.description;
+          const rawCat =
+            row.Kategori ||
+            row.kategori ||
+            row.Category ||
+            row.category ||
+            null;
 
-            const rawDate = dateVal ? new Date(dateVal) : new Date();
-            const validDate = isNaN(rawDate.getTime()) ? new Date() : rawDate;
+          const rawDebit =
+            row.Debet || row.debet || row.Debit || row.debit || 0;
+          const rawCredit =
+            row.Credit ||
+            row.credit ||
+            row.Kredit ||
+            row.kredit ||
+            row.Pengeluaran ||
+            row.pengeluaran ||
+            0;
 
-            return {
-              date: validDate.toISOString().split('T')[0],
-              code: codeVal ? String(codeVal).trim() : 'MT',
-              description: descVal ? String(descVal).trim() : '',
-              category: catVal ? String(catVal).trim() : null,
-              debit: cleanNumber(debitVal),
-              credit: cleanNumber(creditVal),
-            };
-          })
-          .filter((row) => row.description.length > 0);
+          if (!rawDesc && !rawDebit && !rawCredit) return null;
 
-        if (parsedData.length === 0) {
-          alert('Could not find valid rows. Ensure your spreadsheet contains columns like Tanggal, Keterangan, Debet, and Credit.');
-          setIsProcessing(false);
-          return;
-        }
+          return {
+            date: normalizeExcelDate(rawDate),
+            code: String(rawCode).trim(),
+            description: String(rawDesc || "").trim(),
+            category: rawCat ? String(rawCat).trim() : null,
+            debit:
+              typeof rawDebit === "number"
+                ? rawDebit
+                : parseFloat(String(rawDebit).replace(/[^0-9.-]+/g, "")) || 0,
+            credit:
+              typeof rawCredit === "number"
+                ? rawCredit
+                : parseFloat(String(rawCredit).replace(/[^0-9.-]+/g, "")) || 0,
+          };
+        })
+        .filter(Boolean);
 
-        mutation.mutate(parsedData);
-      } catch (err) {
-        console.error('File parsing error:', err);
-        alert('Failed to read the file. Ensure it is a valid .xlsx or .csv spreadsheet.');
-        setIsProcessing(false);
+      if (parsedRows.length === 0) {
+        alert("No valid transaction rows found in this sheet.");
+        return;
       }
-    };
 
-    reader.readAsBinaryString(file);
+      await bulkMutation.mutateAsync(parsedRows);
+    } catch (err: any) {
+      console.error("Import error:", err);
+      alert(`Import failed: ${err.message}`);
+    } finally {
+      setIsParsing(false);
+    }
   };
+
+  const isLoading = isParsing || bulkMutation.isPending;
 
   return (
     <>
       <input
         ref={fileInputRef}
         type="file"
-        accept=".xlsx, .xls, .csv"
-        className="hidden"
+        accept=".xlsx,.xls,.csv"
         onChange={handleFileUpload}
+        className="hidden"
       />
       <Button
         variant="outline"
         size="sm"
-        disabled={isProcessing || mutation.isPending}
+        disabled={isLoading}
         onClick={() => fileInputRef.current?.click()}
-        className="gap-2"
+        className="gap-2 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
       >
-        <Upload className="h-4 w-4 text-blue-600" />
-        {isProcessing || mutation.isPending ? 'Importing...' : 'Import'}
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+        ) : (
+          <Upload className="h-4 w-4 text-zinc-500" />
+        )}
+        {isLoading ? "Importing..." : "Import Excel"}
       </Button>
     </>
   );
