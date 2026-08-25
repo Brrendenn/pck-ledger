@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Plus } from "lucide-react";
 import { DataTable } from "@/components/ledger/data-table";
 import { getColumns } from "@/components/ledger/columns";
 import { AddTransactionDialog } from "@/components/ledger/add-transaction-dialog";
@@ -126,6 +126,22 @@ export default function LedgerPage() {
             sheetName={sheetData?.name || "Ledger"}
           />
         </div>
+      </div>
+      {/* Floating Action Button (Mobile Only) */}
+      <div className="fixed bottom-6 right-6 z-40 lg:hidden">
+        <AddTransactionDialog
+          sheetId={sheetId}
+          sheetType={sheetData?.type}
+          defaultCategory={sheetData?.category}
+          triggerButton={
+            <Button
+              size="icon"
+              className="h-14 w-14 rounded-full bg-blue-600 text-white shadow-xl hover:bg-blue-700 active:scale-95"
+            >
+              <Plus className="h-6 w-6" />
+            </Button>
+          }
+        />
       </div>
     </div>
   );
