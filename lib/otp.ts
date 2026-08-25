@@ -1,7 +1,13 @@
 // lib/otp.ts
+import dns from "dns";
 import crypto from "crypto";
 import { Redis } from "@upstash/redis";
 import nodemailer from "nodemailer";
+
+// Force Node.js DNS resolver to prioritize IPv4 in cloud container environments
+if (typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -14,27 +20,28 @@ export async function generateAndSendOTP(email: string): Promise<boolean> {
   const pass = process.env.SMTP_PASSWORD?.trim();
 
   if (!user || !pass) {
-    console.error("SMTP Error: SMTP_EMAIL or SMTP_PASSWORD is not set.");
+    console.error("SMTP Error: SMTP_EMAIL or SMTP_PASSWORD is not configured.");
     return false;
   }
 
-  // Create transporter with explicit host, port 465 (SSL), and connection timeouts
+  // Create transporter with explicit IPv4 socket binding (family: 4)
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
-    secure: true, // SSL
+    secure: true,
+    family: 4, // Forces IPv4 (bypasses unreachable IPv6 routes)
     auth: {
       user,
       pass,
     },
-    connectionTimeout: 7000, // 7s timeout
-    greetingTimeout: 5000,
-    socketTimeout: 7000,
-  });
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+  } as any);
 
   const otp = crypto.randomInt(100000, 999999).toString();
 
-  // Store in Redis with a 5-minute TTL
+  // Store in Redis with a 5-minute TTL (300 seconds)
   await redis.set(`otp:${cleanEmail}`, otp, { ex: 300 });
 
   try {
@@ -76,6 +83,7 @@ export async function verifyOTP(
     return false;
   }
 
+  // Invalidate OTP immediately after successful verification
   await redis.del(key);
   return true;
 }
