@@ -170,21 +170,22 @@ export function AddTransactionDialog({
             </div>
           )}
 
-          {/* Amount Field with Mobile NumPad Trigger */}
+          {/* Amount Field with Rp Prefix and Mobile Numeric Keypad */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
               Nominal (Rp)
             </label>
             <div className="relative">
-              <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+              <span className="absolute left-3 top-2.5 text-xs font-bold text-zinc-400 dark:text-zinc-500">
+                Rp
+              </span>
               <Input
                 type="text"
                 inputMode="numeric"
-                pattern="[0-9]*"
                 placeholder="0"
                 value={amount}
                 onChange={handleAmountChange}
-                className="pl-9 text-base font-semibold tabular-nums sm:text-sm"
+                className="pl-10 text-base font-semibold tabular-nums sm:text-sm"
                 required
                 autoFocus
               />
