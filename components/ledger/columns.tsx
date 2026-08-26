@@ -264,15 +264,31 @@ export function getColumns(
       },
       {
         accessorKey: "saldo",
-        header: () => (
-          <div className="text-right font-semibold">Total Pengeluaran</div>
-        ),
+        header: isExpenseOnly ? "Total Pengeluaran" : "Saldo",
         cell: ({ row }) => {
-          const amount = parseFloat(row.getValue("saldo"));
+          const val = row.original.saldo ?? row.getValue("saldo");
+          const num = Number(val);
+
+          if (isNaN(num) || !isFinite(num)) {
+            return <span className="font-mono text-zinc-400">-</span>;
+          }
+
+          const formatted = new Intl.NumberFormat("id-ID", {
+            style: "decimal",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }).format(num);
+
           return (
-            <div className="text-right font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-              {formatAccounting(amount)}
-            </div>
+            <span
+              className={`font-mono text-xs font-semibold ${
+                num < 0
+                  ? "text-rose-600 dark:text-rose-400"
+                  : "text-zinc-900 dark:text-zinc-100"
+              }`}
+            >
+              {formatted}
+            </span>
           );
         },
       },
