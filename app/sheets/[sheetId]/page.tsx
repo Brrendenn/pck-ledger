@@ -1,7 +1,7 @@
 // app/sheets/[sheetId]/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { BarChart3, Plus } from "lucide-react";
@@ -37,6 +37,16 @@ export default function LedgerPage() {
       return res.json();
     },
   });
+
+  // Strict numeric mapping to eliminate string concatenation, NaN, and Rp ∞
+  const safeTransactions = useMemo(() => {
+    if (!Array.isArray(transactions)) return [];
+    return transactions.map((t: any) => ({
+      ...t,
+      debit: Number(t.debit) || 0,
+      credit: Number(t.credit) || 0,
+    }));
+  }, [transactions]);
 
   if (isSheetLoading || isTxLoading) {
     return (
@@ -84,13 +94,13 @@ export default function LedgerPage() {
       {/* Visual Analytics Charts */}
       {showAnalytics && (
         <LedgerAnalytics
-          data={transactions || []}
+          data={safeTransactions}
           isExpenseOnly={isExpenseOnly}
         />
       )}
 
       {/* Summary KPI Cards */}
-      <LedgerStats data={transactions || []} isExpenseOnly={isExpenseOnly} />
+      <LedgerStats data={safeTransactions} isExpenseOnly={isExpenseOnly} />
 
       {/* Workbook Container */}
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
@@ -115,18 +125,23 @@ export default function LedgerPage() {
                 isExpenseOnly={isExpenseOnly}
               />
               <ImportExcelButton sheetId={sheetId} />
-              <AddTransactionDialog sheetId={sheetId} />
+              <AddTransactionDialog
+                sheetId={sheetId}
+                sheetType={sheetData?.type}
+                defaultCategory={sheetData?.category}
+              />
             </div>
           </div>
 
           <DataTable
             columns={tableColumns}
-            data={transactions || []}
+            data={safeTransactions}
             sheetId={sheetId}
             sheetName={sheetData?.name || "Ledger"}
           />
         </div>
       </div>
+
       {/* Floating Action Button (Mobile Only) */}
       <div className="fixed bottom-6 right-6 z-40 lg:hidden">
         <AddTransactionDialog
