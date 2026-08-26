@@ -14,6 +14,37 @@ const createTransactionSchema = z.object({
   credit: z.number().nonnegative().default(0),
 });
 
+// 1. GET: Fetch transactions for a given sheet
+export async function GET(request: Request) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const sheetId = searchParams.get('sheetId');
+
+    if (!sheetId) {
+      return NextResponse.json({ error: 'sheetId is required' }, { status: 400 });
+    }
+
+    const transactions = await prisma.transaction.findMany({
+      where: { sheetId },
+      orderBy: [
+        { date: 'asc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+    return NextResponse.json(transactions);
+  } catch (error) {
+    console.error('Failed to fetch transactions:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+// 2. POST: Create transaction with automatic Global sync
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -24,7 +55,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const data = createTransactionSchema.parse(body);
 
-    // 1. Fetch target sheet and its sibling sheets in the project
+    // Fetch target sheet and siblings in the same project
     const currentSheet = await prisma.sheet.findUnique({
       where: { id: data.sheetId },
       include: {
@@ -45,14 +76,14 @@ export async function POST(request: Request) {
       currentSheet.name.toLowerCase().includes('global') ||
       currentSheet.category?.toLowerCase() === 'global';
 
-    // 2. Locate the project's Global Sheet
+    // Locate the project's Global Sheet
     const globalSheet = projectSheets.find(
       (s) =>
         s.id !== currentSheet.id &&
         (s.name.toLowerCase().includes('global') || s.category?.toLowerCase() === 'global')
     );
 
-    // 3. Locate category sub-sheet if category is provided
+    // Locate matching category sheet if applicable
     let categorySheet = null;
     if (data.category) {
       const cleanCat = data.category.trim().toLowerCase();
@@ -64,9 +95,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Atomic transaction creation and cascading sync
+    // Atomic transaction creation and cascading sync
     const createdPrimary = await prisma.$transaction(async (tx) => {
-      // Create primary entry in current sheet
       const primary = await tx.transaction.create({
         data: {
           sheetId: currentSheet.id,
@@ -79,9 +109,9 @@ export async function POST(request: Request) {
         },
       });
 
-      // If this is an expense (credit > 0), sync automatically
+      // Auto-sync expenses (credit > 0)
       if (data.credit > 0) {
-        // Auto-sync to Global Sheet if current sheet is not already Global
+        // Sync to Pembukuan Global
         if (globalSheet && !isCurrentGlobal) {
           await tx.transaction.create({
             data: {
@@ -89,14 +119,14 @@ export async function POST(request: Request) {
               date: new Date(data.date),
               code: data.code.toUpperCase(),
               description: data.description,
-              category: data.category || currentSheet.name.replace('Pembukuan ', ''),
+              category: data.category || currentSheet.name.replace(/^Pembukuan\s+/i, ''),
               debit: 0,
               credit: data.credit,
             },
           });
         }
 
-        // Auto-sync to specific Module Sheet if category matches another sheet
+        // Sync to category module sheet if matched
         if (categorySheet) {
           await tx.transaction.create({
             data: {
