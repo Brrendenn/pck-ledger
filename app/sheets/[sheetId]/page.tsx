@@ -38,15 +38,31 @@ export default function LedgerPage() {
     },
   });
 
-  // Strict numeric mapping to eliminate string concatenation, NaN, and Rp ∞
+  const isExpenseOnly = sheetData?.type === "EXPENSE_ONLY";
+
+  // Calculate sequential running balance (saldo) for each row
   const safeTransactions = useMemo(() => {
     if (!Array.isArray(transactions)) return [];
-    return transactions.map((t: any) => ({
-      ...t,
-      debit: Number(t.debit) || 0,
-      credit: Number(t.credit) || 0,
-    }));
-  }, [transactions]);
+    
+    let currentBalance = 0;
+    return transactions.map((t: any) => {
+      const debit = Number(t.debit) || 0;
+      const credit = Number(t.credit) || 0;
+
+      if (isExpenseOnly) {
+        currentBalance += credit;
+      } else {
+        currentBalance += (debit - credit);
+      }
+
+      return {
+        ...t,
+        debit,
+        credit,
+        saldo: currentBalance, // Injects computed running balance
+      };
+    });
+  }, [transactions, isExpenseOnly]);
 
   if (isSheetLoading || isTxLoading) {
     return (
@@ -59,7 +75,6 @@ export default function LedgerPage() {
 
   const project = sheetData?.project;
   const sheets = project?.sheets || [];
-  const isExpenseOnly = sheetData?.type === "EXPENSE_ONLY";
 
   const availableCategories: string[] = sheets
     .map((s: any) => s.category)
