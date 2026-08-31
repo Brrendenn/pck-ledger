@@ -78,10 +78,23 @@ model Project {
   name           String
   company        String          @default("PT PERDANA CIPTA KREASINDO")
   location       String?
+  contactName    String?         // Default PIC (e.g. "Bpk Ardi")
+  contactPhone   String?         // Default Phone (e.g. "0857-1431-7510")
   sheets         Sheet[]
-  purchaseOrders PurchaseOrder[] // <-- Add this line
+  purchaseOrders PurchaseOrder[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+}
+
+model Vendor {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  address     String?
+  signerName  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
 }
 
 model Sheet {
