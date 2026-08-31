@@ -26,16 +26,16 @@ enum SheetType {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  password      String?
-  role          Role      @default(EDITOR)
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id        String    @id @default(cuid())
+  name      String?
+  email     String    @unique
+  password  String?
+  role      Role      @default(EDITOR)
+  image     String?
+  accounts  Account[]
+  sessions  Session[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Account {
@@ -74,12 +74,14 @@ model VerificationToken {
 }
 
 model Project {
-  id        String   @id @default(cuid())
-  name      String
-  company   String
-  sheets    Sheet[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String          @id @default(cuid())
+  name           String
+  company        String          @default("PT PERDANA CIPTA KREASINDO")
+  location       String?
+  sheets         Sheet[]
+  purchaseOrders PurchaseOrder[] // <-- Add this line
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }
 
 model Sheet {
@@ -104,12 +106,80 @@ model Transaction {
   category    String?
   debit       Decimal  @default(0) @db.Decimal(15, 2)
   credit      Decimal  @default(0) @db.Decimal(15, 2)
-  
-  sheetId     String
-  sheet       Sheet    @relation(fields: [sheetId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  sheetId String
+  sheet   Sheet  @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([sheetId, date])
+}
+
+model PurchaseOrder {
+  id       String   @id @default(cuid())
+  poNumber String   @unique
+  date     DateTime
+
+  companyName    String  @default("PT PERDANA CIPTA KREASINDO")
+  companyAddress String? @default("The Icon Ritzone N7 No 36")
+  companyCity    String? @default("Tangerang Selatan")
+  companyPhone   String? @default("+6281295006061")
+  companyEmail   String? @default("ptperdanaciptakreasindo@gmail.com")
+
+  vendorName       String
+  vendorSignerName String?
+
+  shipToAddress String
+  shipToContact String?
+  shipToPhone   String?
+
+  notes          String? @db.Text
+  authorizerName String  @default("RICHARD EDWIN GIOVANI")
+
+  subtotal    Float  @default(0)
+  totalAmount Float  @default(0)
+  status      String @default("ISSUED") // "DRAFT" | "ISSUED" | "COMPLETED" | "CANCELLED"
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  items       PurchaseOrderItem[]
+  adjustments PurchaseOrderAdjustment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([poNumber])
+}
+
+model PurchaseOrderItem {
+  id            String        @id @default(cuid())
+  poId          String
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  itemIndex   Int    @default(1)
+  description String @db.Text
+  quantity    Float  @default(0)
+  unitPrice   Float  @default(0)
+  totalPrice  Float  @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([poId])
+}
+
+model PurchaseOrderAdjustment {
+  id            String        @id @default(cuid())
+  poId          String
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  adjustmentIndex Int    @default(1) // 1 to 4 for the blank lines below Subtotal
+  label           String // e.g., "PPN 11%", "PPH 23", "Diskon", "Ongkir"
+  amount          Float  @default(0) // Positive or negative adjustment amount
+
+  createdAt DateTime @default(now())
+
+  @@index([poId])
 }
