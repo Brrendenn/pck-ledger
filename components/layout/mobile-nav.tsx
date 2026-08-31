@@ -16,9 +16,9 @@ import {
   LogOut,
   User as UserIcon,
   ChevronRight,
-  Plus,
   LayoutDashboard,
-} from "lucide-react";
+  ReceiptText,
+} from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 
@@ -140,6 +140,18 @@ export function MobileNav() {
               >
                 <LayoutDashboard className="h-4 w-4" />
                 <span>Portfolio Overview</span>
+              </Link>
+
+              <Link
+                href="/purchase-orders"
+                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                  pathname.startsWith('/purchase-orders')
+                    ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
+                    : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-900'
+                }`}
+              >
+                <ReceiptText className="h-4 w-4 text-emerald-600" />
+                <span>Purchase Orders</span>
               </Link>
 
               {/* Projects & Workbooks Section */}
