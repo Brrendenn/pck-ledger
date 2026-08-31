@@ -116,19 +116,6 @@ export default function PurchaseOrdersPage() {
 
         <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
           <span className="text-xs font-semibold text-zinc-500">
-            Total Nilai Pengadaan
-          </span>
-          <p className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-            {new Intl.NumberFormat("id-ID", {
-              style: "currency",
-              currency: "IDR",
-              minimumFractionDigits: 0,
-            }).format(totalValue)}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
-          <span className="text-xs font-semibold text-zinc-500">
             Format Template
           </span>
           <p className="mt-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200">
