@@ -319,112 +319,115 @@ export function CreatePODialog() {
           </div>
 
           {/* Section 2: Vendor & Ship To */}
-          {/* Vendor Details */}
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="text-[11px] font-bold tracking-wider text-emerald-700 uppercase dark:text-emerald-400">
-                Vendor
-              </span>
-            </div>
-
-            {/* 1. Nama Vendor */}
-            <div className="relative">
-              <Building className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-400" />
-              <Input
-                list="vendor-list"
-                value={vendorName}
-                onChange={(e) => handleVendorSelect(e.target.value)}
-                placeholder="Nama Vendor / Perusahaan (e.g. PT Global Sentral Nusantara)"
-                className="h-9 pl-8 text-xs font-medium"
-                required
-              />
-              <datalist id="vendor-list">
-                {(metaData?.vendors || []).map((v: any) => (
-                  <option key={v.id} value={v.name}>
-                    {v.address ? `${v.name} (${v.address})` : v.name}
-                  </option>
-                ))}
-              </datalist>
-            </div>
-
-            {/* 2. Alamat Lengkap Vendor (Semua baris alamat, jalan, kota, kodepos) */}
-            <div className="space-y-1">
-              <textarea
-                rows={2}
-                value={vendorAddress}
-                onChange={(e) => setVendorAddress(e.target.value)}
-                placeholder="Alamat Lengkap Vendor (e.g. Pinangsia 1 No. 55 D, Tamansari, Jakarta Barat, DKI Jakarta, 11180)"
-                className="w-full resize-y rounded-lg border border-zinc-200 bg-white p-2.5 text-xs leading-relaxed transition-colors focus:border-zinc-900 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:focus:border-zinc-100"
-              />
-            </div>
-
-            {/* 3. PIC Penandatangan Vendor (Hanya nama orang) */}
-            <div className="relative">
-              <User className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-400" />
-              <Input
-                value={vendorSignerName}
-                onChange={(e) => setVendorSignerName(e.target.value)}
-                placeholder="Nama PIC Penandatangan (e.g. Bpk. Hendra / Kosongkan jika belum ada)"
-                className="h-9 pl-8 text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
+          <div className="grid grid-cols-1 gap-4 rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 sm:grid-cols-2">
+            {/* Vendor Details */}
+            <div className="space-y-2.5">
               <div className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
                 <span className="text-[11px] font-bold tracking-wider text-emerald-700 uppercase dark:text-emerald-400">
-                  Ship To (Tujuan Pengiriman)
+                  Vendor
                 </span>
               </div>
 
-              {metaData?.projects?.length > 0 && (
-                <select
-                  value={selectedProjectId}
-                  onChange={(e) => handleProjectSelect(e.target.value)}
-                  className="rounded-md border border-zinc-200 bg-white px-2 py-0.5 text-[10px] font-medium text-zinc-700 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-                >
-                  <option value="">-- Isi Otomatis Dari Proyek --</option>
-                  {metaData.projects.map((p: any) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
+              {/* 1. Vendor Name */}
+              <div className="relative">
+                <Building className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-400" />
+                <Input
+                  list="vendor-list"
+                  value={vendorName}
+                  onChange={(e) => handleVendorSelect(e.target.value)}
+                  placeholder="Nama Vendor / Perusahaan"
+                  className="h-9 pl-8 text-xs font-medium"
+                  required
+                />
+                <datalist id="vendor-list">
+                  {(metaData?.vendors || []).map((v: any) => (
+                    <option key={v.id} value={v.name}>
+                      {v.address ? `${v.name} (${v.address})` : v.name}
                     </option>
                   ))}
-                </select>
-              )}
-            </div>
+                </datalist>
+              </div>
 
-            <div className="relative">
-              <MapPin className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-400" />
-              <Input
-                value={shipToAddress}
-                onChange={(e) => setShipToAddress(e.target.value)}
-                placeholder="Alamat Proyek (e.g. Jl Lindungi Blok R.3 No 17)"
-                className="h-9 pl-8 text-xs"
-                required
-              />
-            </div>
+              {/* 2. Full Multi-line Vendor Address */}
+              <div className="space-y-1">
+                <textarea
+                  rows={2}
+                  value={vendorAddress}
+                  onChange={(e) => setVendorAddress(e.target.value)}
+                  placeholder="Alamat Lengkap Vendor (Jalan, Kelurahan, Kota, Kode Pos)"
+                  className="w-full resize-y rounded-lg border border-zinc-200 bg-white p-2.5 text-xs leading-relaxed transition-colors focus:border-zinc-900 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-950 dark:focus:border-zinc-100"
+                />
+              </div>
 
-            <div className="grid grid-cols-2 gap-2">
+              {/* 3. Optional PIC Signer Name Only */}
               <div className="relative">
                 <User className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-400" />
                 <Input
-                  value={shipToContact}
-                  onChange={(e) => setShipToContact(e.target.value)}
-                  placeholder="PIC Penerima"
+                  value={vendorSignerName}
+                  onChange={(e) => setVendorSignerName(e.target.value)}
+                  placeholder="Nama PIC Penandatangan (Kosongkan jika tanda tangan basah)"
                   className="h-9 pl-8 text-xs"
                 />
               </div>
+            </div>
+
+            {/* Ship To Details */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="text-[11px] font-bold tracking-wider text-emerald-700 uppercase dark:text-emerald-400">
+                    Ship To (Tujuan Pengiriman)
+                  </span>
+                </div>
+
+                {metaData?.projects?.length > 0 && (
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => handleProjectSelect(e.target.value)}
+                    className="rounded-md border border-zinc-200 bg-white px-2 py-0.5 text-[10px] font-medium text-zinc-700 focus:outline-hidden dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+                  >
+                    <option value="">-- Isi Otomatis Dari Proyek --</option>
+                    {metaData.projects.map((p: any) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
               <div className="relative">
-                <Phone className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-400" />
+                <MapPin className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-400" />
                 <Input
-                  value={shipToPhone}
-                  onChange={(e) => setShipToPhone(e.target.value)}
-                  placeholder="No. Telepon"
+                  value={shipToAddress}
+                  onChange={(e) => setShipToAddress(e.target.value)}
+                  placeholder="Alamat Proyek (e.g. Jl Lindungi Blok R.3 No 17)"
                   className="h-9 pl-8 text-xs"
+                  required
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative">
+                  <User className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-400" />
+                  <Input
+                    value={shipToContact}
+                    onChange={(e) => setShipToContact(e.target.value)}
+                    placeholder="PIC Penerima"
+                    className="h-9 pl-8 text-xs"
+                  />
+                </div>
+                <div className="relative">
+                  <Phone className="absolute top-2.5 left-2.5 h-4 w-4 text-zinc-400" />
+                  <Input
+                    value={shipToPhone}
+                    onChange={(e) => setShipToPhone(e.target.value)}
+                    placeholder="No. Telepon"
+                    className="h-9 pl-8 text-xs"
+                  />
+                </div>
               </div>
             </div>
           </div>
