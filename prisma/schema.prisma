@@ -130,38 +130,44 @@ model Transaction {
 }
 
 model PurchaseOrder {
-  id       String   @id @default(cuid())
-  poNumber String   @unique
-  date     DateTime
+  id                 String                    @id @default(cuid())
+  poNumber           String                    @unique
+  date               DateTime
+  
+  // Company Header Details
+  companyName        String                    @default("PT PERDANA CIPTA KREASINDO")
+  companyAddress     String?                   @default("The Icon Ritzone N7 No 36")
+  companyCity        String?                   @default("Tangerang Selatan")
+  companyPhone       String?                   @default("+6281295006061")
+  companyEmail       String?                   @default("ptperdanaciptakreasindo@gmail.com")
 
-  companyName    String  @default("PT PERDANA CIPTA KREASINDO")
-  companyAddress String? @default("The Icon Ritzone N7 No 36")
-  companyCity    String? @default("Tangerang Selatan")
-  companyPhone   String? @default("+6281295006061")
-  companyEmail   String? @default("ptperdanaciptakreasindo@gmail.com")
+  // Vendor Details
+  vendorName         String
+  vendorAddress      String?                   // <-- Add this line
+  vendorSignerName   String?
 
-  vendorName       String
-  vendorSignerName String?
+  // Delivery & Destination
+  shipToAddress      String
+  shipToContact      String?
+  shipToPhone        String?
 
-  shipToAddress String
-  shipToContact String?
-  shipToPhone   String?
+  // Notes & Signatures
+  notes              String?                   @db.Text
+  authorizerName     String                    @default("RICHARD EDWIN GIOVANI")
 
-  notes          String? @db.Text
-  authorizerName String  @default("RICHARD EDWIN GIOVANI")
+  // Calculated Totals
+  subtotal           Float                     @default(0)
+  totalAmount        Float                     @default(0)
+  status             String                    @default("ISSUED")
 
-  subtotal    Float  @default(0)
-  totalAmount Float  @default(0)
-  status      String @default("ISSUED") // "DRAFT" | "ISSUED" | "COMPLETED" | "CANCELLED"
+  projectId          String?
+  project            Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  projectId String?
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  items              PurchaseOrderItem[]
+  adjustments        PurchaseOrderAdjustment[]
 
-  items       PurchaseOrderItem[]
-  adjustments PurchaseOrderAdjustment[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
 
   @@index([projectId])
   @@index([poNumber])
