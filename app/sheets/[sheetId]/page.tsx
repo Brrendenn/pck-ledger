@@ -80,7 +80,9 @@ export default function LedgerPage() {
   const tableColumns = useMemo(() => {
     const rawColumns = getColumns(isExpenseOnly, availableCategories);
     if (isClient) {
-      return rawColumns.filter((col: any) => col.id !== "actions");
+      return rawColumns.filter(
+        (col: any) => col.id !== "actions" && col.id !== "select"
+      );
     }
     return rawColumns;
   }, [isExpenseOnly, availableCategories, isClient]);
