@@ -49,11 +49,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const isOtpValid = await verifyOTP(cleanEmail, cleanOtp);
         if (!isOtpValid) return null;
 
+        // RETURN assignedProjectId HERE:
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
+          assignedProjectId: user.assignedProjectId, // <-- ADDED
         };
       },
     }),
@@ -62,7 +64,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role;
+        token.role = (user as any).role || "ADMIN";
+        token.assignedProjectId = (user as any).assignedProjectId || null;
       }
       return token;
     },
@@ -70,6 +73,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         (session.user as any).role = token.role as string;
+        (session.user as any).assignedProjectId = token.assignedProjectId as string | null;
       }
       return session;
     },

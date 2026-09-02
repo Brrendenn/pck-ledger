@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
@@ -21,6 +22,9 @@ interface CreateSheetDialogProps {
 }
 
 export function CreateSheetDialog({ projectId }: CreateSheetDialogProps) {
+  const { data: session } = useSession();
+  const isClient = (session?.user as any)?.role === 'CLIENT';
+
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -52,6 +56,11 @@ export function CreateSheetDialog({ projectId }: CreateSheetDialogProps) {
       router.push(`/sheets/${newSheet.id}`);
     },
   });
+
+  // Automatically hide the button if the user is a Client
+  if (isClient) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -101,7 +110,7 @@ export function CreateSheetDialog({ projectId }: CreateSheetDialogProps) {
             <select
               value={type}
               onChange={(e) => setType(e.target.value as any)}
-              className="flex h-9 w-full rounded-md border border-zinc-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 dark:border-zinc-800 dark:bg-zinc-950"
+              className="flex h-9 w-full rounded-md border border-zinc-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-zinc-950 dark:border-zinc-800 dark:bg-zinc-950"
             >
               <option value="EXPENSE_ONLY">Expense Only (Sub-Module)</option>
               <option value="DEBIT_CREDIT">Debit & Credit (Master Kas)</option>
