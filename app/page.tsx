@@ -2,6 +2,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   Building2,
@@ -24,6 +27,20 @@ const formatCurrency = (val: number) =>
   }).format(val);
 
 export default function GlobalDashboardPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      const isClient = (session?.user as any)?.role === "CLIENT";
+      const assignedProjectId = (session?.user as any)?.assignedProjectId;
+
+      if (isClient && assignedProjectId) {
+        router.replace(`/projects/${assignedProjectId}`);
+      }
+    }
+  }, [session, status, router]);
+  
   const { data: projects, isLoading } = useQuery({
     queryKey: ["sidebar-projects"],
     queryFn: async () => {

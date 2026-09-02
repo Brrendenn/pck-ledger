@@ -34,9 +34,11 @@ export interface SheetItem {
 interface SheetTabsProps {
   sheets: SheetItem[];
   projectId: string;
+  isReadOnly?: boolean;
 }
 
-export function SheetTabs({ sheets, projectId }: SheetTabsProps) {
+// 1. Add isReadOnly = false here
+export function SheetTabs({ sheets, projectId, isReadOnly = false }: SheetTabsProps) {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -54,7 +56,6 @@ export function SheetTabs({ sheets, projectId }: SheetTabsProps) {
       queryClient.invalidateQueries({ queryKey: ['sidebar-projects'] });
       queryClient.invalidateQueries({ queryKey: ['sheet'] });
 
-      // If deleting the active sheet, redirect to the first remaining sheet or home
       if (deletedId === currentSheetId) {
         const remaining = sheets.filter((s) => s.id !== deletedId);
         if (remaining.length > 0) {
@@ -87,29 +88,34 @@ export function SheetTabs({ sheets, projectId }: SheetTabsProps) {
                   {sheet.name}
                 </Link>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="rounded p-0.5 opacity-0 transition-opacity hover:bg-zinc-200 group-hover:opacity-100 dark:hover:bg-zinc-800"
-                    >
-                      <MoreVertical className="h-3 w-3 text-zinc-500" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950/50"
-                      onClick={() => setSheetToDelete(sheet)}
-                    >
-                      <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Sheet
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {/* 2. Hide Sheet Delete Menu if isReadOnly */}
+                {!isReadOnly && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="rounded p-0.5 opacity-0 transition-opacity hover:bg-zinc-200 group-hover:opacity-100 dark:hover:bg-zinc-800"
+                      >
+                        <MoreVertical className="h-3 w-3 text-zinc-500" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950/50"
+                        onClick={() => setSheetToDelete(sheet)}
+                      >
+                        <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Sheet
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             );
           })}
         </div>
-        {projectId && <CreateSheetDialog projectId={projectId} />}
+
+        {/* 3. Hide Create Sheet Tab Button if isReadOnly */}
+        {!isReadOnly && projectId && <CreateSheetDialog projectId={projectId} />}
       </div>
 
       <AlertDialog

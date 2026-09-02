@@ -14,8 +14,11 @@ import { SheetTabs } from "@/components/ledger/sheet-tabs";
 import { LedgerStats } from "@/components/ledger/ledger-stats";
 import { LedgerAnalytics } from "@/components/ledger/ledger-analytics";
 import { Button } from "@/components/ui/button";
+import { useSession } from "next-auth/react";
 
 export default function LedgerPage() {
+  const { data: session } = useSession();
+  const isClient = (session?.user as any)?.role === "CLIENT";
   const params = useParams();
   const sheetId = params.sheetId as string;
   const [showAnalytics, setShowAnalytics] = useState(false);
@@ -43,7 +46,7 @@ export default function LedgerPage() {
   // Calculate sequential running balance (saldo) for each row
   const safeTransactions = useMemo(() => {
     if (!Array.isArray(transactions)) return [];
-    
+
     let currentBalance = 0;
     return transactions.map((t: any) => {
       const debit = Number(t.debit) || 0;
@@ -52,17 +55,35 @@ export default function LedgerPage() {
       if (isExpenseOnly) {
         currentBalance += credit;
       } else {
-        currentBalance += (debit - credit);
+        currentBalance += debit - credit;
       }
 
       return {
         ...t,
         debit,
         credit,
-        saldo: currentBalance, // Injects computed running balance
+        saldo: currentBalance,
       };
     });
   }, [transactions, isExpenseOnly]);
+
+  const project = sheetData?.project;
+  const sheets = project?.sheets || [];
+
+  const availableCategories: string[] = useMemo(() => {
+    return sheets
+      .map((s: any) => s.category)
+      .filter((c: any): c is string => Boolean(c));
+  }, [sheets]);
+
+  // Filter out the action column (edit/delete) if the user is a client
+  const tableColumns = useMemo(() => {
+    const rawColumns = getColumns(isExpenseOnly, availableCategories);
+    if (isClient) {
+      return rawColumns.filter((col: any) => col.id !== "actions");
+    }
+    return rawColumns;
+  }, [isExpenseOnly, availableCategories, isClient]);
 
   if (isSheetLoading || isTxLoading) {
     return (
@@ -73,15 +94,6 @@ export default function LedgerPage() {
     );
   }
 
-  const project = sheetData?.project;
-  const sheets = project?.sheets || [];
-
-  const availableCategories: string[] = sheets
-    .map((s: any) => s.category)
-    .filter((c: any): c is string => Boolean(c));
-
-  const tableColumns = getColumns(isExpenseOnly, availableCategories);
-
   return (
     <div className="flex flex-col gap-6">
       {/* Title Header */}
@@ -91,7 +103,7 @@ export default function LedgerPage() {
             {project?.company || "PT. PCK"}
           </h2>
           <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            {project?.name || "PROJECT PABRIK KONGKIE"}
+            {project?.name || "PROJECT LEDGER"}
           </h1>
         </div>
 
@@ -119,7 +131,12 @@ export default function LedgerPage() {
 
       {/* Workbook Container */}
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <SheetTabs sheets={sheets} projectId={project?.id} />
+        {/* Pass isReadOnly so client cannot add new sheet tabs */}
+        <SheetTabs
+          sheets={sheets}
+          projectId={project?.id}
+          isReadOnly={isClient}
+        />
 
         <div className="p-4">
           <div className="mb-4 flex items-center justify-between">
@@ -135,16 +152,23 @@ export default function LedgerPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Export / Template button stays visible for client */}
               <DownloadTemplateButton
                 sheetName={sheetData?.name || "Ledger"}
                 isExpenseOnly={isExpenseOnly}
               />
-              <ImportExcelButton sheetId={sheetId} />
-              <AddTransactionDialog
-                sheetId={sheetId}
-                sheetType={sheetData?.type}
-                defaultCategory={sheetData?.category}
-              />
+
+              {/* Admin-only action controls */}
+              {!isClient && (
+                <>
+                  <ImportExcelButton sheetId={sheetId} />
+                  <AddTransactionDialog
+                    sheetId={sheetId}
+                    sheetType={sheetData?.type}
+                    defaultCategory={sheetData?.category}
+                  />
+                </>
+              )}
             </div>
           </div>
 
@@ -157,22 +181,24 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* Floating Action Button (Mobile Only) */}
-      <div className="fixed bottom-6 right-6 z-40 lg:hidden">
-        <AddTransactionDialog
-          sheetId={sheetId}
-          sheetType={sheetData?.type}
-          defaultCategory={sheetData?.category}
-          triggerButton={
-            <Button
-              size="icon"
-              className="h-14 w-14 rounded-full bg-blue-600 text-white shadow-xl hover:bg-blue-700 active:scale-95"
-            >
-              <Plus className="h-6 w-6" />
-            </Button>
-          }
-        />
-      </div>
+      {/* Floating Action Button (Mobile Only - Admin Only) */}
+      {!isClient && (
+        <div className="fixed bottom-6 right-6 z-40 lg:hidden">
+          <AddTransactionDialog
+            sheetId={sheetId}
+            sheetType={sheetData?.type}
+            defaultCategory={sheetData?.category}
+            triggerButton={
+              <Button
+                size="icon"
+                className="h-14 w-14 rounded-full bg-blue-600 text-white shadow-xl hover:bg-blue-700 active:scale-95"
+              >
+                <Plus className="h-6 w-6" />
+              </Button>
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }

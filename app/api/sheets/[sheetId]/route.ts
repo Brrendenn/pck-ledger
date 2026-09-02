@@ -1,45 +1,55 @@
 // app/api/sheets/[sheetId]/route.ts
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { auth } from "@/auth";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ sheetId: string }> }
+  { params }: { params: Promise<{ sheetId: string }> },
 ) {
   try {
-    const { sheetId } = await params;
-
-    if (!sheetId) {
-      return NextResponse.json({ error: 'sheetId is required' }, { status: 400 });
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const { sheetId } = await params;
+    const userRole = (session.user as any).role;
+    const assignedProjectId = (session.user as any).assignedProjectId;
 
     const sheet = await prisma.sheet.findUnique({
       where: { id: sheetId },
       include: {
-        project: {
-          include: {
-            sheets: {
-              orderBy: { createdAt: 'asc' },
-            },
-          },
-        },
+        project: true,
+        transactions: { orderBy: { date: "asc" } },
       },
     });
 
     if (!sheet) {
-      return NextResponse.json({ error: 'Sheet not found' }, { status: 404 });
+      return NextResponse.json({ error: "Sheet not found" }, { status: 404 });
+    }
+
+    // Security Gate: If Client, verify sheet belongs to their project
+    if (userRole === "CLIENT" && sheet.projectId !== assignedProjectId) {
+      return NextResponse.json(
+        { error: "Forbidden: Access denied to this project" },
+        { status: 403 },
+      );
     }
 
     return NextResponse.json(sheet);
   } catch (error) {
-    console.error('Failed to fetch sheet metadata:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error("Failed to load sheet:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ sheetId: string }> }
+  { params }: { params: Promise<{ sheetId: string }> },
 ) {
   try {
     const { sheetId } = await params;
@@ -80,12 +90,15 @@ export async function DELETE(
     });
 
     if (!result) {
-      return NextResponse.json({ error: 'Sheet not found' }, { status: 404 });
+      return NextResponse.json({ error: "Sheet not found" }, { status: 404 });
     }
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Failed to delete sheet:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error("Failed to delete sheet:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

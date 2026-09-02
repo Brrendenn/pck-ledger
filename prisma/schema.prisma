@@ -26,16 +26,24 @@ enum SheetType {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  name      String?
-  email     String    @unique
-  password  String?
-  role      Role      @default(EDITOR)
-  image     String?
-  accounts  Account[]
-  sessions  Session[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id       String  @id @default(cuid())
+  name     String?
+  email    String  @unique
+  password String?
+  role     String  @default("ADMIN") // "ADMIN" | "CLIENT"
+
+  // Link client user to assigned project
+  assignedProjectId String?
+  assignedProject   Project? @relation(fields: [assignedProjectId], references: [id], onDelete: SetNull)
+
+  // NextAuth reverse relations
+  accounts Account[]
+  sessions Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedProjectId])
 }
 
 model Account {
@@ -78,21 +86,22 @@ model Project {
   name           String
   company        String          @default("PT PERDANA CIPTA KREASINDO")
   location       String?
-  contactName    String?         // Default PIC (e.g. "Bpk Ardi")
-  contactPhone   String?         // Default Phone (e.g. "0857-1431-7510")
+  contactName    String?
+  contactPhone   String?
   sheets         Sheet[]
   purchaseOrders PurchaseOrder[]
+  clientUsers    User[] // Reverse relation for assigned clients
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
 
 model Vendor {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  address     String?
-  signerName  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String   @unique
+  address    String?
+  signerName String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([name])
 }
@@ -130,44 +139,44 @@ model Transaction {
 }
 
 model PurchaseOrder {
-  id                 String                    @id @default(cuid())
-  poNumber           String                    @unique
-  date               DateTime
-  
+  id       String   @id @default(cuid())
+  poNumber String   @unique
+  date     DateTime
+
   // Company Header Details
-  companyName        String                    @default("PT PERDANA CIPTA KREASINDO")
-  companyAddress     String?                   @default("The Icon Ritzone N7 No 36")
-  companyCity        String?                   @default("Tangerang Selatan")
-  companyPhone       String?                   @default("+6281295006061")
-  companyEmail       String?                   @default("ptperdanaciptakreasindo@gmail.com")
+  companyName    String  @default("PT PERDANA CIPTA KREASINDO")
+  companyAddress String? @default("The Icon Ritzone N7 No 36")
+  companyCity    String? @default("Tangerang Selatan")
+  companyPhone   String? @default("+6281295006061")
+  companyEmail   String? @default("ptperdanaciptakreasindo@gmail.com")
 
   // Vendor Details
-  vendorName         String
-  vendorAddress      String?                   // <-- Add this line
-  vendorSignerName   String?
+  vendorName       String
+  vendorAddress    String? // <-- Add this line
+  vendorSignerName String?
 
   // Delivery & Destination
-  shipToAddress      String
-  shipToContact      String?
-  shipToPhone        String?
+  shipToAddress String
+  shipToContact String?
+  shipToPhone   String?
 
   // Notes & Signatures
-  notes              String?                   @db.Text
-  authorizerName     String                    @default("RICHARD EDWIN GIOVANI")
+  notes          String? @db.Text
+  authorizerName String  @default("RICHARD EDWIN GIOVANI")
 
   // Calculated Totals
-  subtotal           Float                     @default(0)
-  totalAmount        Float                     @default(0)
-  status             String                    @default("ISSUED")
+  subtotal    Float  @default(0)
+  totalAmount Float  @default(0)
+  status      String @default("ISSUED")
 
-  projectId          String?
-  project            Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  items              PurchaseOrderItem[]
-  adjustments        PurchaseOrderAdjustment[]
+  items       PurchaseOrderItem[]
+  adjustments PurchaseOrderAdjustment[]
 
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([projectId])
   @@index([poNumber])

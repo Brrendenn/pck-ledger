@@ -30,6 +30,10 @@ export function MobileNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
 
+  // 1. Role & Assigned Project Check
+  const isClient = (session?.user as any)?.role === "CLIENT";
+  const assignedProjectId = (session?.user as any)?.assignedProjectId;
+
   // Close drawer automatically on route change
   useEffect(() => {
     setIsOpen(false);
@@ -55,6 +59,11 @@ export function MobileNav() {
       return res.json();
     },
   });
+
+  // 2. Filter projects if the user is a Client
+  const visibleProjects = isClient
+    ? projects.filter((p: any) => p.id === assignedProjectId)
+    : projects;
 
   const toggleProject = (projectId: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -96,7 +105,7 @@ export function MobileNav() {
         </Button>
       </header>
 
-      {/* 2. Isolated Fullscreen Drawer (Placed outside header to avoid stacking context traps) */}
+      {/* 2. Isolated Fullscreen Drawer */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
           {/* Backdrop Blur Overlay */}
@@ -129,44 +138,48 @@ export function MobileNav() {
                 </button>
               </div>
 
-              {/* Portfolio Link */}
-              <Link
-                href="/"
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                  pathname === "/"
-                    ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
-                    : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-900"
-                }`}
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                <span>Portfolio Overview</span>
-              </Link>
+              {/* 3. Hide Portfolio Overview and Purchase Orders for Clients */}
+              {!isClient && (
+                <div className="space-y-1">
+                  <Link
+                    href="/"
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                      pathname === "/"
+                        ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
+                        : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-900"
+                    }`}
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    <span>Portfolio Overview</span>
+                  </Link>
 
-              <Link
-                href="/purchase-orders"
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                  pathname.startsWith('/purchase-orders')
-                    ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
-                    : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-900'
-                }`}
-              >
-                <ReceiptText className="h-4 w-4 text-emerald-600" />
-                <span>Purchase Orders</span>
-              </Link>
+                  <Link
+                    href="/purchase-orders"
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                      pathname.startsWith('/purchase-orders')
+                        ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
+                        : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-900'
+                    }`}
+                  >
+                    <ReceiptText className="h-4 w-4 text-emerald-600" />
+                    <span>Purchase Orders</span>
+                  </Link>
+                </div>
+              )}
 
               {/* Projects & Workbooks Section */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                    Projects & Sheets
+                    {isClient ? "Your Project" : "Projects & Sheets"}
                   </span>
                   <span className="rounded bg-zinc-100 px-1.5 py-0.2 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800">
-                    {projects.length}
+                    {visibleProjects.length}
                   </span>
                 </div>
 
                 <div className="space-y-1">
-                  {projects.map((project: any) => {
+                  {visibleProjects.map((project: any) => {
                     const isExpanded = expandedProjects[project.id] ?? true;
                     const isProjectActive =
                       pathname === `/projects/${project.id}`;
@@ -250,9 +263,12 @@ export function MobileNav() {
                   })}
                 </div>
 
-                <div className="pt-2">
-                  <CreateProjectDialog />
-                </div>
+                {/* 4. Hide Create Project Dialog for Clients */}
+                {!isClient && (
+                  <div className="pt-2">
+                    <CreateProjectDialog />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -266,7 +282,7 @@ export function MobileNav() {
                     </div>
                     <div className="truncate">
                       <p className="truncate text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                        {session.user.name || "Admin"}
+                        {session.user.name || (isClient ? "Client" : "Admin")}
                       </p>
                       <p className="truncate text-[10px] text-zinc-400">
                         {session.user.email}

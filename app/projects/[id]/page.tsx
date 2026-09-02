@@ -26,6 +26,7 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { CreateSheetDialog } from "@/components/ledger/create-new-sheet-dialog";
+import { useSession } from 'next-auth/react';
 
 interface ModuleChartItem {
   name: string;
@@ -51,6 +52,8 @@ const COLORS = [
 export default function ProjectDashboardPage() {
   const params = useParams();
   const router = useRouter();
+  const { data: session } = useSession();
+  const isClient = (session?.user as any)?.role === 'CLIENT';
   const projectId = params.id as string;
 
   const { data, isLoading } = useQuery({
@@ -176,7 +179,7 @@ export default function ProjectDashboardPage() {
         </div>
 
         {/* Module Sub-Allocations */}
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        {!isClient && (<div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
               Module Spend
@@ -191,7 +194,7 @@ export default function ProjectDashboardPage() {
           <p className="mt-1 text-xs text-zinc-500">
             Total recorded module costs
           </p>
-        </div>
+        </div>)}
       </div>
 
       {/* Module Spend Breakdown Chart */}

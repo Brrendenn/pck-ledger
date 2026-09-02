@@ -53,6 +53,13 @@ export async function GET(request: Request) {
 
 // 2. POST: Create transaction with automatic Global sync
 export async function POST(request: Request) {
+  const session = await auth();
+  const userRole = (session?.user as any)?.role;
+
+  if (userRole === 'CLIENT') {
+    return NextResponse.json({ error: 'Forbidden: Read-only access' }, { status: 403 });
+  }
+
   try {
     const session = await auth();
     if (!session?.user) {
