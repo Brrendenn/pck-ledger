@@ -17,6 +17,7 @@ import {
 } from "@tanstack/react-table";
 import { Search, X, Calendar, Filter, Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ExportButtons } from "./export-buttons";
@@ -46,6 +47,9 @@ export function DataTable({
   sheetName,
 }: DataTableProps) {
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const isClient = (session?.user as any)?.role === "CLIENT";
+
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -55,7 +59,7 @@ export function DataTable({
   const [selectedCode, setSelectedCode] = useState<string>("ALL");
   const [showBulkDeleteAlert, setShowBulkDeleteAlert] = useState(false);
 
-  // Controlled pagination state (50 items per page)
+  // Controlled pagination state (100 items per page)
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 100,
@@ -63,6 +67,16 @@ export function DataTable({
 
   const lastSheetIdRef = useRef<string>(sheetId);
   const initialLoadDoneRef = useRef<boolean>(false);
+
+  // Filter out checkbox and action columns for client roles
+  const visibleColumns = useMemo(() => {
+    if (isClient) {
+      return columns.filter(
+        (col: any) => col.id !== "select" && col.id !== "actions"
+      );
+    }
+    return columns;
+  }, [columns, isClient]);
 
   const uniqueCodes = useMemo(() => {
     const codes = new Set<string>();
@@ -84,7 +98,6 @@ export function DataTable({
     });
   }, [data, startDate, endDate, selectedCode]);
 
-  // Set default page to the last page on initial load or sheet switch
   useEffect(() => {
     const isNewSheet = lastSheetIdRef.current !== sheetId;
     if (isNewSheet) {
@@ -95,7 +108,7 @@ export function DataTable({
     if (filteredData.length > 0 && !initialLoadDoneRef.current) {
       const lastPageIndex = Math.max(
         0,
-        Math.ceil(filteredData.length / pagination.pageSize) - 1,
+        Math.ceil(filteredData.length / pagination.pageSize) - 1
       );
       setPagination((prev) => ({ ...prev, pageIndex: lastPageIndex }));
       initialLoadDoneRef.current = true;
@@ -104,7 +117,7 @@ export function DataTable({
 
   const table = useReactTable({
     data: filteredData,
-    columns,
+    columns: visibleColumns,
     state: {
       sorting,
       columnFilters,
@@ -112,15 +125,14 @@ export function DataTable({
       rowSelection,
       pagination,
     },
-    enableRowSelection: true,
-    autoResetPageIndex: false, // Prevents jumping to page 1 on edits and mutations
+    enableRowSelection: !isClient,
+    autoResetPageIndex: false,
     onPaginationChange: setPagination,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: (val) => {
       setGlobalFilter(val);
-      // Reset to first page when actively searching
       setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     },
     getCoreRowModel: getCoreRowModel(),
@@ -153,7 +165,7 @@ export function DataTable({
         const idSet = new Set(ids);
         queryClient.setQueryData<LedgerEntry[]>(
           ["transactions", sheetId],
-          previous.filter((item) => !idSet.has(item.id)),
+          previous.filter((item) => !idSet.has(item.id))
         );
       }
       return { previous };
@@ -211,7 +223,7 @@ export function DataTable({
                 setSelectedCode(e.target.value);
                 setPagination((prev) => ({ ...prev, pageIndex: 0 }));
               }}
-              className="h-9 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+              className="h-9 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
             >
               <option value="ALL">All Codes</option>
               {uniqueCodes.map((code) => (
@@ -258,7 +270,8 @@ export function DataTable({
         </div>
 
         <div className="flex items-center gap-2">
-          {selectedIds.length > 0 && (
+          {/* Hide Bulk Delete Button for Clients */}
+          {!isClient && selectedIds.length > 0 && (
             <Button
               variant="destructive"
               size="sm"
@@ -289,7 +302,7 @@ export function DataTable({
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext(),
+                          header.getContext()
                         )}
                   </th>
                 ))}
@@ -308,7 +321,7 @@ export function DataTable({
                     <td key={cell.id} className="px-4 py-3">
                       {flexRender(
                         cell.column.columnDef.cell,
-                        cell.getContext(),
+                        cell.getContext()
                       )}
                     </td>
                   ))}
@@ -317,7 +330,7 @@ export function DataTable({
             ) : (
               <tr>
                 <td
-                  colSpan={columns.length}
+                  colSpan={visibleColumns.length}
                   className="h-32 text-center text-zinc-400"
                 >
                   No transactions match the selected filters.
@@ -331,7 +344,7 @@ export function DataTable({
       {/* Pagination Controls */}
       <div className="flex items-center justify-between pt-2">
         <div className="text-xs text-zinc-500">
-          {selectedIds.length > 0 ? (
+          {!isClient && selectedIds.length > 0 ? (
             <span>
               {selectedIds.length} of {table.getFilteredRowModel().rows.length}{" "}
               row(s) selected.
@@ -373,37 +386,39 @@ export function DataTable({
       </div>
 
       {/* Bulk Delete Dialog */}
-      <AlertDialog
-        open={showBulkDeleteAlert}
-        onOpenChange={setShowBulkDeleteAlert}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {selectedIds.length} Transactions?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete all {selectedIds.length} selected
-              entries and update the cumulative sheet balance.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkDeleteMutation.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                bulkDeleteMutation.mutate(selectedIds);
-              }}
-              disabled={bulkDeleteMutation.isPending}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              {bulkDeleteMutation.isPending ? "Deleting..." : "Delete Selected"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {!isClient && (
+        <AlertDialog
+          open={showBulkDeleteAlert}
+          onOpenChange={setShowBulkDeleteAlert}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete {selectedIds.length} Transactions?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all {selectedIds.length} selected
+                entries and update the cumulative sheet balance.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={bulkDeleteMutation.isPending}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  bulkDeleteMutation.mutate(selectedIds);
+                }}
+                disabled={bulkDeleteMutation.isPending}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {bulkDeleteMutation.isPending ? "Deleting..." : "Delete Selected"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
