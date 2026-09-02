@@ -10,7 +10,7 @@ import { z } from "zod";
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
-  otp: z.string().length(6),
+  otp: z.string().optional(), // 1. OTP is now optional in schema
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -33,7 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { email, password, otp } = parsed.data;
         const cleanEmail = email.trim().toLowerCase();
-        const cleanOtp = otp.trim();
+        const cleanOtp = otp?.trim();
 
         const user = await prisma.user.findUnique({
           where: { email: cleanEmail },
@@ -41,21 +41,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user || !user.password) return null;
 
-        // 1. Verify Password
+        // 1. Verify Password (Required for both ADMIN & CLIENT)
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) return null;
 
-        // 2. Verify 2FA OTP
-        const isOtpValid = await verifyOTP(cleanEmail, cleanOtp);
-        if (!isOtpValid) return null;
+        // 2. Role-Based 2FA Check
+        if (user.role === "ADMIN") {
+          // Admin accounts strictly require a valid 6-digit OTP
+          if (!cleanOtp || cleanOtp.length !== 6) {
+            throw new Error("OTP_REQUIRED");
+          }
+          const isOtpValid = await verifyOTP(cleanEmail, cleanOtp);
+          if (!isOtpValid) {
+            throw new Error("INVALID_OTP");
+          }
+        }
 
-        // RETURN assignedProjectId HERE:
+        // CLIENT accounts skip the OTP check completely!
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
-          assignedProjectId: user.assignedProjectId, // <-- ADDED
+          assignedProjectId: user.assignedProjectId,
         };
       },
     }),
