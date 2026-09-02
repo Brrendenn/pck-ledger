@@ -3,7 +3,6 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import {
   Building2,
   Lock,
@@ -16,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [step, setStep] = useState<"CREDENTIALS" | "OTP">("CREDENTIALS");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,26 +22,47 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Step 1: Validate password & dispatch OTP
+  // Step 1: Check credentials & dispatch OTP for ADMIN, or sign in directly for CLIENT
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
       const res = await fetch("/api/auth/request-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
         setError(data.error || "Invalid email or password");
         setLoading(false);
         return;
       }
 
+      // CLIENT: Sign in immediately and bypass OTP completely
+      if (!data.requiresOtp) {
+        const result = await signIn("credentials", {
+          email: cleanEmail,
+          password,
+          redirect: false,
+        });
+
+        if (result?.error) {
+          setError("Failed to sign in. Please try again.");
+          setLoading(false);
+        } else {
+          window.location.href = "/";
+        }
+        return;
+      }
+
+      // ADMIN: Transition to 2FA code entry screen
       setStep("OTP");
       setLoading(false);
     } catch {
@@ -52,7 +71,7 @@ export default function LoginPage() {
     }
   };
 
-  // Step 2: Final NextAuth sign in with OTP
+  // Step 2: Final NextAuth sign-in with 6-digit OTP (Admin only)
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -91,7 +110,7 @@ export default function LoginPage() {
           </h1>
           <p className="mt-1 text-xs text-zinc-500">
             {step === "CREDENTIALS"
-              ? "Enter your credentials to receive an authentication code."
+              ? "Enter your credentials to access your ledger."
               : `Enter the 6-digit code sent to ${email}`}
           </p>
         </div>
@@ -112,7 +131,7 @@ export default function LoginPage() {
                 <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-400" />
                 <Input
                   type="email"
-                  placeholder="admin@pck.co.id"
+                  placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-8 text-xs"
@@ -148,7 +167,7 @@ export default function LoginPage() {
                   <Loader2 className="h-3.5 w-3.5 animate-spin" /> Verifying...
                 </span>
               ) : (
-                "Continue to 2FA"
+                "Sign In"
               )}
             </Button>
           </form>

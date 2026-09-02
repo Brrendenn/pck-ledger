@@ -123,7 +123,7 @@ export default function ProjectDashboardPage() {
       {/* Aggregate KPI Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Cash Inflow */}
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        {!isClient && (<div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
               Total Kas (Debet)
@@ -136,10 +136,10 @@ export default function ProjectDashboardPage() {
             {formatCurrency(stats.totalInflow)}
           </div>
           <p className="mt-1 text-xs text-zinc-500">Master cash received</p>
-        </div>
+        </div>)}
 
         {/* Total Cash Outflow */}
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        {!isClient && (<div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
               Total Pengeluaran (Credit)
@@ -154,14 +154,14 @@ export default function ProjectDashboardPage() {
           <p className="mt-1 text-xs text-zinc-500">
             Master cash disbursements
           </p>
-        </div>
+        </div>)}
 
         {/* Net Master Saldo */}
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-              Saldo Kas
-            </span>
+        {!isClient && (<div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                Saldo Kas
+              </span>
             <div className="rounded-full bg-blue-50 p-1.5 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
               <Wallet className="h-4 w-4" />
             </div>
@@ -176,7 +176,7 @@ export default function ProjectDashboardPage() {
             {formatCurrency(stats.netCashBalance)}
           </div>
           <p className="mt-1 text-xs text-zinc-500">Remaining liquid balance</p>
-        </div>
+        </div>)}
 
         {/* Module Sub-Allocations */}
         {!isClient && (<div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">

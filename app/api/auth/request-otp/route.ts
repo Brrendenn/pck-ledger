@@ -34,7 +34,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Password is valid -> Trigger OTP delivery
+    // Bypass OTP for CLIENT accounts
+    if (user.role === "CLIENT") {
+      return NextResponse.json({
+        success: true,
+        requiresOtp: false,
+        message: "Authentication verified",
+      });
+    }
+
+    // Require OTP for ADMIN accounts
     const sent = await generateAndSendOTP(user.email);
     if (!sent) {
       return NextResponse.json(
@@ -43,7 +52,11 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, message: "OTP sent to email" });
+    return NextResponse.json({
+      success: true,
+      requiresOtp: true,
+      message: "OTP sent to email",
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
