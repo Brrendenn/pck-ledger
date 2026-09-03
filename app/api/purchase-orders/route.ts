@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 
 export async function GET() {
   try {
@@ -30,6 +31,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const session = await auth();
     if (!session?.user) {
@@ -156,6 +159,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const session = await auth();
     if (!session?.user) {

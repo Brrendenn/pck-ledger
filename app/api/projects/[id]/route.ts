@@ -1,6 +1,7 @@
 // app/api/projects/[id]/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-guard";
 
 export async function GET(
   request: Request,
@@ -112,6 +113,8 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const { id } = await params;
 

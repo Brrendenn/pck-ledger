@@ -1,5 +1,6 @@
 // app/api/transactions/bulk-delete/route.ts
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth-guard";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 
@@ -10,6 +11,8 @@ const bulkDeleteSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const body = await request.json();
     const { ids } = bulkDeleteSchema.parse(body);

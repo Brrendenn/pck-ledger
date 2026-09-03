@@ -1,5 +1,6 @@
 // app/api/transactions/[id]/route.ts
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth-guard";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 
@@ -19,6 +20,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const { id } = await params;
     const body = await request.json();
@@ -53,6 +56,8 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const { id } = await params;
 
