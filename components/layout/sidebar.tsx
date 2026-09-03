@@ -57,13 +57,14 @@ export function Sidebar() {
   const assignedProjectId = (session?.user as any)?.assignedProjectId;
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["sidebar-projects"],
-    queryFn: async () => {
-      const res = await fetch("/api/projects");
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
+  queryKey: ["sidebar-projects"],
+  queryFn: async () => {
+    const res = await fetch("/api/projects");
+    if (!res.ok) return [];
+    return res.json();
+  },
+  enabled: pathname !== "/login" && Boolean(session?.user),
+});
 
   // 2. Filter projects if user is a Client
   const visibleProjects = isClient

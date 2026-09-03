@@ -1,5 +1,6 @@
 // app/api/sheets/[sheetId]/route.ts
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth-guard";
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
 
@@ -51,6 +52,8 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ sheetId: string }> },
 ) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const { sheetId } = await params;
 

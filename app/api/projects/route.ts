@@ -1,5 +1,6 @@
 // app/api/projects/route.ts
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth-guard';
 import prisma from '@/lib/prisma';
 import { auth } from '@/auth';
 import { z } from 'zod';
@@ -20,21 +21,11 @@ export async function GET() {
     const role = (session.user as any)?.role;
     const assignedProjectId = (session.user as any)?.assignedProjectId;
 
-    // Debug: Check VS Code terminal to see what session actually contains
-    console.log('[Projects GET] User:', {
-      email: session.user.email,
-      role,
-      assignedProjectId,
-    });
-
-    // Security Gate:
-    // If user is CLIENT:
+    // Security Gate: Clients only receive their assigned project
     if (role === 'CLIENT') {
-      // If no project is assigned, return empty array immediately (never fall back to all projects)
       if (!assignedProjectId) {
         return NextResponse.json([]);
       }
-      // Return only their assigned project
       const clientProjects = await prisma.project.findMany({
         where: { id: assignedProjectId },
         include: {
@@ -46,7 +37,7 @@ export async function GET() {
       return NextResponse.json(clientProjects);
     }
 
-    // ADMIN: Return all projects
+    // ADMIN: Return all registered projects
     const projects = await prisma.project.findMany({
       include: {
         sheets: {
@@ -67,13 +58,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Block Clients from creating projects
     if ((session.user as any)?.role === 'CLIENT') {
       return NextResponse.json(
         { error: 'Forbidden: Clients cannot create projects' },

@@ -1,5 +1,6 @@
 // app/api/transactions/route.ts
 import { NextResponse } from 'next/server';
+import { requireAdmin } from "@/lib/auth-guard";
 import prisma from '@/lib/prisma';
 import { auth } from '@/auth';
 import { z } from 'zod';
@@ -53,6 +54,8 @@ export async function GET(request: Request) {
 
 // 2. POST: Create transaction with automatic Global sync
 export async function POST(request: Request) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   const session = await auth();
   const userRole = (session?.user as any)?.role;
 

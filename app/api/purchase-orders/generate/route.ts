@@ -5,8 +5,11 @@ import fs from "fs";
 import ExcelJS from "exceljs";
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 
 export async function POST(request: Request) {
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const session = await auth();
     if (!session?.user) {

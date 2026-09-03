@@ -30,16 +30,13 @@ export function MobileNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  // 1. Role & Assigned Project Check
   const isClient = (session?.user as any)?.role === "CLIENT";
   const assignedProjectId = (session?.user as any)?.assignedProjectId;
 
-  // Close drawer automatically on route change
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
 
-  // Lock body scroll when drawer is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -52,15 +49,15 @@ export function MobileNav() {
   }, [isOpen]);
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["sidebar-projects"],
-    queryFn: async () => {
-      const res = await fetch("/api/projects");
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
+  queryKey: ["sidebar-projects"],
+  queryFn: async () => {
+    const res = await fetch("/api/projects");
+    if (!res.ok) return [];
+    return res.json();
+  },
+  enabled: pathname !== "/login" && Boolean(session?.user),
+});
 
-  // 2. Filter projects if the user is a Client
   const visibleProjects = isClient
     ? projects.filter((p: any) => p.id === assignedProjectId)
     : projects;
@@ -78,7 +75,6 @@ export function MobileNav() {
 
   return (
     <>
-      {/* 1. Mobile Top Header Bar */}
       <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950 lg:hidden">
         <Link href="/" className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">

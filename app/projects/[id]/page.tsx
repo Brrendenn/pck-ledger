@@ -1,6 +1,7 @@
 // app/projects/[id]/page.tsx
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -26,7 +27,7 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { CreateSheetDialog } from "@/components/ledger/create-new-sheet-dialog";
-import { useSession } from 'next-auth/react';
+import { useSession } from "next-auth/react";
 
 interface ModuleChartItem {
   name: string;
@@ -52,9 +53,25 @@ const COLORS = [
 export default function ProjectDashboardPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
-  const isClient = (session?.user as any)?.role === 'CLIENT';
+  const { data: session, status } = useSession();
+
+  const isClient = (session?.user as any)?.role === "CLIENT";
+  const assignedProjectId = (session?.user as any)?.assignedProjectId;
   const projectId = params.id as string;
+
+  // 1. Guard: Redirect client immediately if viewing an unauthorized project
+  useEffect(() => {
+    if (status === "authenticated" && isClient) {
+      if (assignedProjectId && projectId !== assignedProjectId) {
+        router.replace(`/projects/${assignedProjectId}`);
+      }
+    }
+  }, [status, isClient, assignedProjectId, projectId, router]);
+
+  // 2. Gate the query so unauthorized project data is never fetched
+  const isAuthorized =
+    status === "authenticated" &&
+    (!isClient || (Boolean(assignedProjectId) && projectId === assignedProjectId));
 
   const { data, isLoading } = useQuery({
     queryKey: ["project-summary", projectId],
@@ -63,9 +80,16 @@ export default function ProjectDashboardPage() {
       if (!res.ok) throw new Error("Failed to load project summary");
       return res.json();
     },
+    enabled: isAuthorized,
   });
 
-  if (isLoading) {
+  // Hold in loading state while checking permissions or fetching authorized data
+  if (
+    status === "loading" ||
+    isLoading ||
+    !data ||
+    (isClient && projectId !== assignedProjectId)
+  ) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="h-24 rounded-lg bg-zinc-200 dark:bg-zinc-800" />
@@ -94,13 +118,13 @@ export default function ProjectDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Project Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-zinc-200 bg-white p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
         <div>
           <span className="text-xs font-semibold tracking-wider uppercase text-zinc-400">
-            {project.company}
+            {project?.company}
           </span>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            {project.name}
+            {project?.name}
           </h1>
           <p className="mt-1 text-xs text-zinc-500">
             Consolidated financial overview and sub-module allocations.
@@ -108,8 +132,8 @@ export default function ProjectDashboardPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <CreateSheetDialog projectId={projectId} />
-          {sheets.length > 0 && (
+          {!isClient && <CreateSheetDialog projectId={projectId} />}
+          {sheets?.length > 0 && (
             <Button
               onClick={() => router.push(`/sheets/${sheets[0].id}`)}
               className="gap-2 text-xs"
@@ -120,86 +144,88 @@ export default function ProjectDashboardPage() {
         </div>
       </div>
 
-      {/* Aggregate KPI Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Total Cash Inflow */}
-        {!isClient && (<div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-              Total Kas (Debet)
-            </span>
-            <div className="rounded-full bg-emerald-50 p-1.5 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
-              <ArrowDownLeft className="h-4 w-4" />
+      {/* Aggregate KPI Summary Cards (Hidden from Client) */}
+      {!isClient && stats && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Total Cash Inflow */}
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                Total Kas (Debet)
+              </span>
+              <div className="rounded-full bg-emerald-50 p-1.5 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+                <ArrowDownLeft className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-          <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
-            {formatCurrency(stats.totalInflow)}
-          </div>
-          <p className="mt-1 text-xs text-zinc-500">Master cash received</p>
-        </div>)}
-
-        {/* Total Cash Outflow */}
-        {!isClient && (<div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-              Total Pengeluaran (Credit)
-            </span>
-            <div className="rounded-full bg-rose-50 p-1.5 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
-              <ArrowUpRight className="h-4 w-4" />
+            <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
+              {formatCurrency(stats.totalInflow)}
             </div>
+            <p className="mt-1 text-xs text-zinc-500">Master cash received</p>
           </div>
-          <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
-            {formatCurrency(stats.totalOutflow)}
-          </div>
-          <p className="mt-1 text-xs text-zinc-500">
-            Master cash disbursements
-          </p>
-        </div>)}
 
-        {/* Net Master Saldo */}
-        {!isClient && (<div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          {/* Total Cash Outflow */}
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                Total Pengeluaran (Credit)
+              </span>
+              <div className="rounded-full bg-rose-50 p-1.5 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
+                <ArrowUpRight className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
+              {formatCurrency(stats.totalOutflow)}
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">
+              Master cash disbursements
+            </p>
+          </div>
+
+          {/* Net Master Saldo */}
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
                 Saldo Kas
               </span>
-            <div className="rounded-full bg-blue-50 p-1.5 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
-              <Wallet className="h-4 w-4" />
+              <div className="rounded-full bg-blue-50 p-1.5 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+                <Wallet className="h-4 w-4" />
+              </div>
             </div>
+            <div
+              className={`mt-2 text-xl font-bold tabular-nums ${
+                stats.netCashBalance >= 0
+                  ? "text-zinc-900 dark:text-zinc-50"
+                  : "text-rose-600 dark:text-rose-400"
+              }`}
+            >
+              {formatCurrency(stats.netCashBalance)}
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">Remaining liquid balance</p>
           </div>
-          <div
-            className={`mt-2 text-xl font-bold tabular-nums ${
-              stats.netCashBalance >= 0
-                ? "text-zinc-900 dark:text-zinc-50"
-                : "text-rose-600 dark:text-rose-400"
-            }`}
-          >
-            {formatCurrency(stats.netCashBalance)}
-          </div>
-          <p className="mt-1 text-xs text-zinc-500">Remaining liquid balance</p>
-        </div>)}
 
-        {/* Module Sub-Allocations */}
-        {!isClient && (<div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-              Module Spend
-            </span>
-            <div className="rounded-full bg-purple-50 p-1.5 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400">
-              <Layers className="h-4 w-4" />
+          {/* Module Sub-Allocations */}
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                Module Spend
+              </span>
+              <div className="rounded-full bg-purple-50 p-1.5 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400">
+                <Layers className="h-4 w-4" />
+              </div>
             </div>
+            <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
+              {formatCurrency(stats.totalModuleExpenses)}
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">
+              Total recorded module costs
+            </p>
           </div>
-          <div className="mt-2 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">
-            {formatCurrency(stats.totalModuleExpenses)}
-          </div>
-          <p className="mt-1 text-xs text-zinc-500">
-            Total recorded module costs
-          </p>
-        </div>)}
-      </div>
+        </div>
+      )}
 
       {/* Module Spend Breakdown Chart */}
       {moduleChartData.length > 0 && (
-        <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between border-b border-zinc-100 pb-3 dark:border-zinc-800">
             <div>
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -271,19 +297,19 @@ export default function ProjectDashboardPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Project Sheets & Workbooks ({sheets.length})
+            Project Sheets & Workbooks ({sheets?.length || 0})
           </h3>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sheets.map((sheet: any) => {
+          {(sheets || []).map((sheet: any) => {
             const isExpenseOnly = sheet.type === "EXPENSE_ONLY";
 
             return (
               <Link
                 key={sheet.id}
                 href={`/sheets/${sheet.id}`}
-                className="group flex flex-col justify-between rounded-lg border border-zinc-200 bg-white p-4 transition-all hover:border-zinc-400 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
+                className="group flex flex-col justify-between rounded-lg border border-zinc-200 bg-white p-4 transition-all hover:border-zinc-400 hover:shadow-xs dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
               >
                 <div>
                   <div className="flex items-start justify-between">
@@ -328,7 +354,7 @@ export default function ProjectDashboardPage() {
                           {
                             day: "numeric",
                             month: "short",
-                          },
+                          }
                         )}
                       </span>
                     )}
@@ -341,7 +367,7 @@ export default function ProjectDashboardPage() {
       </div>
 
       {/* Recent Cross-Sheet Activity Feed */}
-      <div className="rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="rounded-lg border border-zinc-200 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
         <div className="border-b border-zinc-100 p-4 dark:border-zinc-800">
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             Recent Cross-Sheet Activity
@@ -352,7 +378,7 @@ export default function ProjectDashboardPage() {
         </div>
 
         <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {recentTransactions.map((tx: any) => (
+          {(recentTransactions || []).map((tx: any) => (
             <div
               key={tx.id}
               className="flex items-center justify-between p-3.5 text-xs"
