@@ -211,3 +211,24 @@ model PurchaseOrderAdjustment {
 
   @@index([poId])
 }
+
+// prisma/schema.prisma
+
+model Invoice {
+  id            String   @id @default(cuid())
+  sequence      Int
+  invoiceNo     String   @unique
+  date          DateTime @default(now())
+  recipientComp String
+  recipientAttn String
+  projectTitle  String
+  description   String
+  qty           String   @default("1") // Pastikan bertipe String
+  unit          String?  @default("Fee")
+  price         Decimal  @db.Decimal(15, 2)
+  totalAmount   Decimal  @db.Decimal(15, 2)
+  accountNumber String
+  accountName   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

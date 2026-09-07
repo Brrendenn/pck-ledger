@@ -16,6 +16,7 @@ import {
   ReceiptText,
   LogOut,
   User as UserIcon,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
@@ -51,20 +52,20 @@ export function Sidebar() {
   } | null>(null);
 
   const { data: session } = useSession();
-  
+
   // 1. Role and Project Assignment Check
   const isClient = (session?.user as any)?.role === "CLIENT";
   const assignedProjectId = (session?.user as any)?.assignedProjectId;
 
   const { data: projects = [] } = useQuery({
-  queryKey: ["sidebar-projects"],
-  queryFn: async () => {
-    const res = await fetch("/api/projects");
-    if (!res.ok) return [];
-    return res.json();
-  },
-  enabled: pathname !== "/login" && Boolean(session?.user),
-});
+    queryKey: ["sidebar-projects"],
+    queryFn: async () => {
+      const res = await fetch("/api/projects");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: pathname !== "/login" && Boolean(session?.user),
+  });
 
   // 2. Filter projects if user is a Client
   const visibleProjects = isClient
@@ -144,6 +145,19 @@ export function Sidebar() {
                   <ReceiptText className="h-4 w-4 text-emerald-600" />
                   <span>Purchase Orders</span>
                 </Link>
+
+                <Link
+                  href="/invoices"
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
+                    pathname.startsWith("/invoices")
+                      ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
+                      : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50",
+                  )}
+                >
+                  <Receipt className="h-4 w-4" />
+                  <span>Invoices</span>
+                </Link>
               </div>
             )}
 
@@ -222,7 +236,7 @@ export function Sidebar() {
                           <ChevronDown
                             className={cn(
                               "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
-                              isCollapsed && "-rotate-90"
+                              isCollapsed && "-rotate-90",
                             )}
                           />
                         </button>
@@ -247,7 +261,7 @@ export function Sidebar() {
                                   "group flex items-center justify-between rounded-md px-2 py-1.5 text-xs transition-colors",
                                   isActive
                                     ? "bg-zinc-200/80 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
-                                    : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100"
+                                    : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100",
                                 )}
                               >
                                 <Link
