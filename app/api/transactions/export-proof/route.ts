@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
+import { get as getBlob } from "@vercel/blob";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { z } from "zod";
@@ -39,27 +40,50 @@ function formatDateShort(date: Date): string {
   return new Date(date).toLocaleDateString("en-CA"); // YYYY-MM-DD
 }
 
-// Fetch image as base64 data URI from URL
+// Fetch image as base64 data URI from Vercel Blob (supports both private and public stores)
 async function fetchImageAsBase64(
   url: string,
   mimetype: string
 ): Promise<{ dataUri: string; width: number; height: number } | null> {
   try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
+    // Try authenticated Blob SDK first (works for private stores)
+    let buffer: ArrayBuffer;
 
-    const buffer = await response.arrayBuffer();
+    try {
+      const result = await getBlob(url, { access: "private" });
+      if (!result || result.statusCode !== 200 || !result.stream) {
+        throw new Error("Blob get() returned no stream");
+      }
+      // Consume the ReadableStream into a buffer
+      const reader = result.stream.getReader();
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
+      }
+      const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+      const merged = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.length;
+      }
+      buffer = merged.buffer;
+    } catch {
+      // Fallback to plain fetch (works for public stores)
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      buffer = await response.arrayBuffer();
+    }
+
     const base64 = Buffer.from(buffer).toString("base64");
 
-    // Determine format for jsPDF (only JPEG and PNG are widely supported)
-    let format = "JPEG";
-    if (mimetype === "image/png") format = "PNG";
-    else if (mimetype === "image/webp") format = "JPEG"; // jsPDF may not support webp natively
+    // Use image/jpeg for the data URI regardless of original type,
+    // since jsPDF handles JPEG most reliably
+    const safeType = mimetype === "image/png" ? "image/png" : "image/jpeg";
+    const dataUri = `data:${safeType};base64,${base64}`;
 
-    const dataUri = `data:${mimetype};base64,${base64}`;
-
-    // We don't have image dimensions from the URL, so we'll use a default aspect ratio
-    // and let the PDF layout handle sizing
     return { dataUri, width: 0, height: 0 };
   } catch {
     return null;
