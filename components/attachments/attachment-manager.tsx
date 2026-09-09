@@ -77,12 +77,17 @@ export function AttachmentManager({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Paperclip className="h-5 w-5 text-muted-foreground" />
-        <h3 className="text-lg font-semibold">
-          Attachments ({attachments.length})
-        </h3>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Paperclip className="h-5 w-5 text-muted-foreground" />
+          <h3 className="text-lg font-semibold">
+            Attachments
+          </h3>
+          <span className="text-sm text-muted-foreground">
+            ({attachments.length})
+          </span>
+        </div>
       </div>
 
       {!readOnly && (
@@ -96,8 +101,8 @@ export function AttachmentManager({
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : error ? (
         <div className="text-sm text-red-600 py-4 text-center border border-red-200 rounded-lg bg-red-50">

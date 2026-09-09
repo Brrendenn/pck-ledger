@@ -120,28 +120,25 @@ export function FileUpload({
         className="hidden"
         id={`file-upload-${entityId}`}
       />
-      <label htmlFor={`file-upload-${entityId}`}>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || uploading}
-          asChild
-        >
-          <span className="cursor-pointer">
-            {uploading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload className="mr-2 h-4 w-4" />
-                Upload Attachment
-              </>
-            )}
-          </span>
-        </Button>
-      </label>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled || uploading}
+        onClick={() => fileInputRef.current?.click()}
+        className="w-fit"
+      >
+        {uploading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Uploading...
+          </>
+        ) : (
+          <>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Attachment
+          </>
+        )}
+      </Button>
       {error && (
         <div className="flex items-center gap-2 text-sm text-red-600">
           <AlertCircle className="h-4 w-4" />
