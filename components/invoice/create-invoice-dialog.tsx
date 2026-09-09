@@ -42,13 +42,15 @@ export function CreateInvoiceDialog({
   // Recipient (To)
   const [toCompany, setToCompany] = useState("");
   const [toAttn, setToAttn] = useState("");
-  const [projectTitle, setProjectTitle] = useState("DP 30% Pekerjaan Catwalk WTP PT GIST");
+  const [projectTitle, setProjectTitle] = useState(
+    "DP 30% Pekerjaan Catwalk WTP PT GIST",
+  );
 
   // Rincian Item Tagihan
   const [description, setDescription] = useState(
-    "Pek. Catwalk WTP & Railing Pengaman\n- Hollow besi 50x100x3mm\n- Plat 6mm besi\n- Plat 10mm besi\n- Expanded Metal GM50075"
+    "Pek. Catwalk WTP & Railing Pengaman\n- Hollow besi 50x100x3mm\n- Plat 6mm besi\n- Plat 10mm besi\n- Expanded Metal GM50075",
   );
-  
+
   // Qty sebagai Free Text
   const [qty, setQty] = useState("30%");
   const [price, setPrice] = useState("260000000");
@@ -92,8 +94,7 @@ export function CreateInvoiceDialog({
       setIsSubmitting(true);
       const numPrice = Number(price) || 0;
 
-      // 1. Simpan ke database
-      const res = await fetch("/api/invoices", {
+      const res = await fetch("/api/invoices/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -110,29 +111,19 @@ export function CreateInvoiceDialog({
       });
 
       if (!res.ok) {
-        throw new Error("Gagal menyimpan invoice ke database");
+        throw new Error("Gagal menyimpan dan memproses invoice.");
       }
 
-      // 2. Tulis data ke template Excel & download
-      await generateInvoiceExcel({
-        invoiceNo,
-        to: {
-          company: toCompany,
-          attn: toAttn,
-        },
-        accountNumber,
-        accountName,
-        projectTitle,
-        items: [
-          {
-            no: 1,
-            description,
-            qty,
-            price: numPrice,
-            amount: calculatedTotal,
-          },
-        ],
-      });
+      // Handle the file download response
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Invoice-${invoiceNo.replace(/[\/\\:]/g, "-")}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
 
       onSuccess?.();
       setOpen(false);
@@ -207,7 +198,9 @@ export function CreateInvoiceDialog({
           {/* Rincian Item */}
           <div className="space-y-2.5">
             <div className="space-y-1">
-              <label className="font-medium text-zinc-500">Judul / Footer Lingkup Proyek</label>
+              <label className="font-medium text-zinc-500">
+                Judul / Footer Lingkup Proyek
+              </label>
               <Input
                 value={projectTitle}
                 onChange={(e) => setProjectTitle(e.target.value)}
@@ -216,7 +209,9 @@ export function CreateInvoiceDialog({
             </div>
 
             <div className="space-y-1">
-              <label className="font-medium text-zinc-500">Deskripsi & Spesifikasi Pekerjaan</label>
+              <label className="font-medium text-zinc-500">
+                Deskripsi & Spesifikasi Pekerjaan
+              </label>
               <Textarea
                 rows={4}
                 value={description}
@@ -227,7 +222,9 @@ export function CreateInvoiceDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="font-medium text-zinc-500">Qty (Bebas Teks)</label>
+                <label className="font-medium text-zinc-500">
+                  Qty (Bebas Teks)
+                </label>
                 <Input
                   type="text"
                   placeholder="misal: 30%, 1, atau 1 Lot"
@@ -237,7 +234,9 @@ export function CreateInvoiceDialog({
                 />
               </div>
               <div className="space-y-1">
-                <label className="font-medium text-zinc-500">Harga Satuan / Nilai Kontrak</label>
+                <label className="font-medium text-zinc-500">
+                  Harga Satuan / Nilai Kontrak
+                </label>
                 <Input
                   type="number"
                   placeholder="260000000"
@@ -251,7 +250,9 @@ export function CreateInvoiceDialog({
             {/* Preview Total */}
             <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300">
               <span>Total Tagihan (Amount):</span>
-              <span className="font-mono text-sm">{formatCurrency(calculatedTotal)}</span>
+              <span className="font-mono text-sm">
+                {formatCurrency(calculatedTotal)}
+              </span>
             </div>
           </div>
 
@@ -262,7 +263,9 @@ export function CreateInvoiceDialog({
             </span>
             <div className="grid grid-cols-2 gap-2 pt-1">
               <div className="space-y-1">
-                <label className="text-[11px] font-medium text-zinc-500">No. Rekening</label>
+                <label className="text-[11px] font-medium text-zinc-500">
+                  No. Rekening
+                </label>
                 <select
                   value={accountNumber}
                   onChange={(e) => handleAccountNumberChange(e.target.value)}
@@ -274,14 +277,18 @@ export function CreateInvoiceDialog({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-medium text-zinc-500">Atas Nama</label>
+                <label className="text-[11px] font-medium text-zinc-500">
+                  Atas Nama
+                </label>
                 <select
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
                   className="h-8 w-full rounded-md border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-800 dark:bg-zinc-950"
                 >
                   <option value="PT. PCK">PT. PCK</option>
-                  <option value="Richard Edwin Giovani S">Richard Edwin Giovani S</option>
+                  <option value="Richard Edwin Giovani S">
+                    Richard Edwin Giovani S
+                  </option>
                 </select>
               </div>
             </div>

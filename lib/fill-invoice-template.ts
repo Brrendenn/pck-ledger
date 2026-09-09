@@ -7,6 +7,7 @@ export interface InvoiceItem {
   no: number;
   description: string;
   qty: string;
+  unit?: string;
   price: number;
   amount: number;
 }
@@ -24,97 +25,108 @@ export interface GenerateInvoiceParams {
 }
 
 export async function generateInvoiceExcel(data: GenerateInvoiceParams) {
-  const FROM_NAME = "Richard Edwin Giovani";
-  const FROM_EMAIL = "richard_giovani75@yahoo.co.id";
-  const FROM_PHONE = "0816 1127 145";
   const todayFormatted = formatInvoiceDate(new Date());
 
-  // 1. Ambil template mentah
-  const response = await fetch("/templates/invoice-template.xlsx");
-  if (!response.ok) {
-    throw new Error("File template invoice tidak ditemukan di /public/templates/invoice-template.xlsx");
-  }
+  // Fetch with cache-busting timestamp
+  const response = await fetch(
+    `/templates/invoice-template.xlsx?v=${new Date().getTime()}`,
+  );
+  if (!response.ok) throw new Error("Template not found.");
 
   const arrayBuffer = await response.arrayBuffer();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(arrayBuffer);
 
-  const worksheet = workbook.worksheets[0];
-  if (!worksheet) throw new Error("Sheet tidak ditemukan di template.");
+  const worksheet =
+    workbook.getWorksheet("Invoice Template") || workbook.worksheets[0];
 
-  // 2. Metadata Invoice (Baris 3 & 4)
-  // Kolom M adalah kotak isian di sebelah kanan tanda titik dua (:)
-  worksheet.getCell("M3").value = data.invoiceNo;
-  worksheet.getCell("M4").value = todayFormatted;
+  // 1. Metadata
+  worksheet.getCell("L2").value = data.invoiceNo;
+  worksheet.getCell("L3").value = todayFormatted;
 
-  // 3. Data Pengirim (From) - Baris 8, 9, 10
-  worksheet.getCell("D8").value = FROM_NAME;
-  worksheet.getCell("D9").value = FROM_EMAIL;
-  worksheet.getCell("D10").value = FROM_PHONE;
+  // 2. Recipient Info (To)
+  worksheet.getCell("L7").value = data.to.company;
+  worksheet.getCell("L8").value = data.to.attn;
+  worksheet.getCell("L7").font = { name: "Calibri", size: 11 };
+  worksheet.getCell("L8").font = { name: "Calibri", size: 11 };
 
-  // 4. Data Penerima (To) - Baris 8 & 9
-  // Perusahaan di baris 8, Nama PIC/Attn di baris 9
-  worksheet.getCell("J8").value = data.to.company;
-  worksheet.getCell("J9").value = data.to.attn;
+  // Note: Sender info ("From") is removed here.
+  // It is best to just type "Richard Edwin Giovani" directly into your blank Excel file and save it to avoid the giant font glitch.
 
-  // 5. Isi Baris Tabel Pekerjaan (Mulai dari Baris 13)
-  const startRow = 13;
+  // 3. Populate Rows
+  const startRow = 12;
   let totalCalculated = 0;
 
   data.items.forEach((item, index) => {
     const currentRow = startRow + index;
     const row = worksheet.getRow(currentRow);
 
-    // Kolom B: Nomor urut
+    // No
     row.getCell("B").value = item.no;
     row.getCell("B").alignment = { horizontal: "center", vertical: "top" };
 
-    // Kolom C: Deskripsi pekerjaan (C13 adalah master cell dari merge C13:G13)
+    // Item Description (Write directly to C, it is already merged to H)
     const descCell = row.getCell("C");
     descCell.value = item.description;
     descCell.alignment = { wrapText: true, vertical: "top" };
+    descCell.font = { name: "Calibri", size: 11 };
 
-    // Kolom H: Qty (misal: "30%")
-    const qtyCell = row.getCell("H");
-    qtyCell.value = item.qty;
-    qtyCell.alignment = { horizontal: "center", vertical: "middle" };
+    // Qty
+    row.getCell("I").value = item.qty;
+    row.getCell("I").alignment = { horizontal: "center", vertical: "top" };
+    row.getCell("I").font = { name: "Calibri", size: 11 };
 
-    // Kolom K: Price / Nilai Kontrak
+    // Unit
+    row.getCell("J").value = item.unit || "Fee";
+    row.getCell("J").alignment = { horizontal: "center", vertical: "top" };
+    row.getCell("J").font = { name: "Calibri", size: 11 };
+
+    // Price (Write directly to K, it is already merged to L)
     const priceCell = row.getCell("K");
     priceCell.value = item.price;
     priceCell.numFmt = '"Rp"\\ #,##0';
-    priceCell.alignment = { horizontal: "right", vertical: "middle" };
+    priceCell.alignment = { horizontal: "right", vertical: "top" };
+    priceCell.font = { name: "Calibri", size: 11 };
 
-    // Kolom M: Amount / Hasil perkalian
+    // Amount (Write directly to M, it is already merged to N)
     const amountCell = row.getCell("M");
     amountCell.value = item.amount;
     amountCell.numFmt = '"Rp"\\ #,##0';
-    amountCell.alignment = { horizontal: "right", vertical: "middle" };
+    amountCell.alignment = { horizontal: "right", vertical: "top" };
+    amountCell.font = { name: "Calibri", size: 11 };
 
     totalCalculated += item.amount;
   });
 
-  // 6. Lingkup Pekerjaan & Total Amount Bawah
-  worksheet.getCell("B19").value = data.projectTitle;
-  
+  // 4. Project Scope Footer
+  const scopeCell = worksheet.getCell("B18");
+  scopeCell.value = data.projectTitle;
+  scopeCell.font = { name: "Calibri", size: 11, bold: true };
+  scopeCell.alignment = { horizontal: "center", vertical: "middle" };
+
+  // 5. Total Amount
   const totalCell = worksheet.getCell("M20");
   totalCell.value = totalCalculated;
   totalCell.numFmt = '"Rp"\\ #,##0';
 
-  // 7. Rekening Pembayaran (Baris 23, 24, 25)
+  // 6. Payment Details
   worksheet.getCell("D23").value = "BANK BCA";
   worksheet.getCell("D24").value = data.accountNumber;
   worksheet.getCell("D25").value = data.accountName;
+  ["D23", "D24", "D25"].forEach((cell) => {
+    worksheet.getCell(cell).font = { name: "Calibri", size: 11 };
+    worksheet.getCell(cell).alignment = { horizontal: "left" };
+  });
 
-  // 8. Tanggal Tanda Tangan (Di atas stempel materai)
-  worksheet.getCell("K22").value = `Jakarta, ${todayFormatted}`;
+  // 7. Signer Date
+  worksheet.getCell("L21").value = `Jakarta, ${todayFormatted}`;
+  worksheet.getCell("L21").font = { name: "Calibri", size: 11 };
 
-  // 9. Export file Excel
+  // Generate and Download
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 
-  const sanitizedFileName = data.invoiceNo.replace(/[\/\\:]/g, "-");
-  saveAs(blob, `Invoice-${sanitizedFileName}.xlsx`);
+  saveAs(blob, `Invoice-${data.invoiceNo.replace(/[\/\\:]/g, "-")}.xlsx`);
 }

@@ -73,31 +73,45 @@ export default function InvoicesPage() {
         inv.invoiceNo?.toLowerCase().includes(query) ||
         inv.recipientComp?.toLowerCase().includes(query) ||
         inv.recipientAttn?.toLowerCase().includes(query) ||
-        inv.description?.toLowerCase().includes(query)
+        inv.description?.toLowerCase().includes(query),
     );
   }, [invoices, searchQuery]);
 
   const handleDownload = async (inv: any) => {
-    await generateInvoiceExcel({
-      invoiceNo: inv.invoiceNo,
-      to: {
-        company: inv.recipientComp,
-        attn: inv.recipientAttn,
-      },
-      accountNumber: inv.accountNumber,
-      accountName: inv.accountName,
-      projectTitle: inv.projectTitle,
-      items: [
-        {
-          no: 1,
+    try {
+      const res = await fetch("/api/invoices/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceNo: inv.invoiceNo,
+          recipientComp: inv.recipientComp,
+          recipientAttn: inv.recipientAttn,
+          projectTitle: inv.projectTitle,
           description: inv.description,
           qty: inv.qty,
           unit: inv.unit,
           price: Number(inv.price),
-          amount: Number(inv.totalAmount),
-        },
-      ],
-    });
+          accountNumber: inv.accountNumber,
+          accountName: inv.accountName,
+          date: inv.date,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to download invoice");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Invoice-${inv.invoiceNo.replace(/[\/\\:]/g, "-")}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("Gagal mengunduh file invoice.");
+    }
   };
 
   const handleDelete = (id: string, invoiceNo: string) => {
@@ -146,7 +160,9 @@ export default function InvoicesPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
-          <span className="text-xs font-medium text-zinc-500">Total Invoices</span>
+          <span className="text-xs font-medium text-zinc-500">
+            Total Invoices
+          </span>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
               {invoices.length}
@@ -156,7 +172,9 @@ export default function InvoicesPage() {
         </div>
 
         <div className="rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-950">
-          <span className="text-xs font-medium text-zinc-500">Format Template</span>
+          <span className="text-xs font-medium text-zinc-500">
+            Format Template
+          </span>
           <div className="mt-3 text-sm font-bold text-zinc-900 dark:text-zinc-50">
             Excel Master (.xlsx)
           </div>
@@ -186,7 +204,9 @@ export default function InvoicesPage() {
                 <th className="pb-3 px-4 font-semibold">PENERIMA (SHIP TO)</th>
                 <th className="pb-3 px-4 font-semibold">ITEMS</th>
                 <th className="pb-3 px-4 font-semibold">TOTAL (RP)</th>
-                <th className="pb-3 pl-4 pr-2 text-right font-semibold">ACTIONS</th>
+                <th className="pb-3 pl-4 pr-2 text-right font-semibold">
+                  ACTIONS
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
