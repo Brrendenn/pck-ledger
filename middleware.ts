@@ -41,6 +41,7 @@ export default auth(async function middleware(request) {
 
     const isAdminRoute =
       pathname.startsWith("/purchase-orders") ||
+      pathname.startsWith("/invoices") ||
       pathname.startsWith("/api-docs");
 
     if (isAdminRoute) {
