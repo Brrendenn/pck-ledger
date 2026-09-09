@@ -5,6 +5,7 @@ import { useState, useRef } from 'react';
 import { Upload, Loader2, AlertCircle } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { compressImage } from '@/lib/compress-image';
 
 interface FileUploadProps {
   onUploadSuccess?: (attachment: any) => void;
@@ -69,7 +70,10 @@ export function FileUpload({
 
     try {
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+        const rawFile = files[i];
+
+        // Compress images before validation (may reduce size below limit)
+        const file = await compressImage(rawFile);
 
         // Validate file
         const validationError = validateFile(file);
@@ -154,7 +158,7 @@ export function FileUpload({
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        Max 5MB • JPEG, PNG, WebP, GIF, PDF
+        Max 5MB • JPEG, PNG, WebP, GIF, PDF • Images auto-compressed
       </p>
     </div>
   );
