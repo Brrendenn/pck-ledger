@@ -17,16 +17,17 @@ const ALLOWED_TYPES = [
 // GET: Fetch all attachments for a purchase order
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const attachments = await prisma.pOAttachment.findMany({
-      where: { poId: params.id },
+      where: { poId: id },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -40,9 +41,10 @@ export async function GET(
 // POST: Upload a new attachment to a purchase order
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -58,7 +60,7 @@ export async function POST(
 
     // Verify purchase order exists
     const purchaseOrder = await prisma.purchaseOrder.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!purchaseOrder) {
@@ -87,7 +89,7 @@ export async function POST(
     }
 
     // Upload to Vercel Blob
-    const blob = await put(`purchase-orders/${params.id}/${file.name}`, file, {
+    const blob = await put(`purchase-orders/${id}/${file.name}`, file, {
       access: 'public',
       addRandomSuffix: true,
     });
@@ -95,7 +97,7 @@ export async function POST(
     // Save to database
     const attachment = await prisma.pOAttachment.create({
       data: {
-        poId: params.id,
+        poId: id,
         url: blob.url,
         filename: file.name,
         filesize: file.size,
@@ -114,8 +116,12 @@ export async function POST(
 }
 
 // DELETE: Remove a purchase order attachment
-export async function DELETE(request: Request) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -139,8 +145,8 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const attachment = await prisma.pOAttachment.findUnique({
-      where: { id: attachmentId },
+    const attachment = await prisma.pOAttachment.findFirst({
+      where: { id: attachmentId, poId: id },
     });
 
     if (!attachment) {

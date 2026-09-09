@@ -17,16 +17,17 @@ const ALLOWED_TYPES = [
 // GET: Fetch all attachments for a transaction
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const attachments = await prisma.attachment.findMany({
-      where: { transactionId: params.id },
+      where: { transactionId: id },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -40,9 +41,10 @@ export async function GET(
 // POST: Upload a new attachment
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -59,7 +61,7 @@ export async function POST(
 
     // Verify transaction exists
     const transaction = await prisma.transaction.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!transaction) {
@@ -90,7 +92,7 @@ export async function POST(
     }
 
     // Upload to Vercel Blob
-    const blob = await put(`transactions/${params.id}/${file.name}`, file, {
+    const blob = await put(`transactions/${id}/${file.name}`, file, {
       access: 'public',
       addRandomSuffix: true,
     });
@@ -98,7 +100,7 @@ export async function POST(
     // Save to database
     const attachment = await prisma.attachment.create({
       data: {
-        transactionId: params.id,
+        transactionId: id,
         url: blob.url,
         filename: file.name,
         filesize: file.size,
@@ -117,8 +119,12 @@ export async function POST(
 }
 
 // DELETE: Remove an attachment
-export async function DELETE(request: Request) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -143,8 +149,8 @@ export async function DELETE(request: Request) {
     }
 
     // Get attachment to retrieve URL before deleting
-    const attachment = await prisma.attachment.findUnique({
-      where: { id: attachmentId },
+    const attachment = await prisma.attachment.findFirst({
+      where: { id: attachmentId, transactionId: id },
     });
 
     if (!attachment) {

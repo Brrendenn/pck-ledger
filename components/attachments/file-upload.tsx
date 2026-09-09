@@ -3,7 +3,8 @@
 
 import { useState, useRef } from 'react';
 import { Upload, Loader2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface FileUploadProps {
   onUploadSuccess?: (attachment: any) => void;
@@ -117,28 +118,35 @@ export function FileUpload({
         multiple={multiple}
         onChange={handleFileChange}
         disabled={disabled || uploading}
-        className="hidden"
+        className="sr-only"
         id={`file-upload-${entityId}`}
       />
-      <Button
-        type="button"
-        variant="outline"
-        disabled={disabled || uploading}
-        onClick={() => fileInputRef.current?.click()}
-        className="w-fit"
+      <label
+        htmlFor={`file-upload-${entityId}`}
+        className={cn(
+          buttonVariants({ variant: 'outline' }),
+          'w-fit flex-row gap-2',
+          (disabled || uploading) && 'pointer-events-none opacity-50'
+        )}
+        style={{
+          display: 'inline-flex',
+          flexDirection: 'row',
+          boxShadow: 'none',
+          outline: 'none',
+        }}
       >
         {uploading ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
             Uploading...
           </>
         ) : (
           <>
-            <Upload className="mr-2 h-4 w-4" />
+            <Upload className="h-4 w-4" />
             Upload Attachment
           </>
         )}
-      </Button>
+      </label>
       {error && (
         <div className="flex items-center gap-2 text-sm text-red-600">
           <AlertCircle className="h-4 w-4" />
