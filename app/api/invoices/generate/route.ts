@@ -112,10 +112,10 @@ export async function POST(request: Request) {
     worksheet.getCell("N4").font = { name: "Calibri", size: 11 };
 
     // 2. Recipient Info (Column M, Rows 8 & 9)
-    worksheet.getCell("M8").value = recipientComp;
-    worksheet.getCell("M9").value = recipientAttn;
-    worksheet.getCell("M8").font = { name: "Calibri", size: 11 };
-    worksheet.getCell("M9").font = { name: "Calibri", size: 11 };
+    worksheet.getCell("L8").value = recipientComp;
+    worksheet.getCell("L9").value = recipientAttn;
+    worksheet.getCell("L8").font = { name: "Calibri", size: 11 };
+    worksheet.getCell("L9").font = { name: "Calibri", size: 11 };
 
     // 3. Item Data (Starts on Row 13)
     // No in Column C
