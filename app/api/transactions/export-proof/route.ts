@@ -224,18 +224,58 @@ export async function POST(request: Request) {
       margin: { left: margin, right: margin },
     });
 
-    // ─── ATTACHMENT IMAGES (grouped under each transaction) ───
+    // ─── ATTACHMENT IMAGES (2-column grid, grouped per transaction) ───
 
     if (transactionsWithAttachments.length > 0) {
       doc.addPage();
+
+      // Grid layout: 2 columns, images flow to fill space
+      const gap = 12;
+      const colWidth = (contentWidth - gap) / 2;
+      const headerHeight = 26;
+      const rowLabelGap = 8;
+
       let cursorY = margin;
 
       for (const tx of transactionsWithAttachments) {
-        // Compact header row for the transaction
-        const headerHeight = 30;
+        // ─── Collect this transaction's usable images first ───
+        const images: { dataUri: string; w: number; h: number; format: string }[] = [];
 
-        // Ensure header + at least a bit of the first image fit
-        if (cursorY > pageHeight - 160) {
+        for (const attachment of tx.attachments) {
+          if (!attachment.mimetype.startsWith("image/")) continue;
+
+          const imageData = await fetchImageAsBase64(
+            attachment.url,
+            attachment.mimetype
+          );
+          if (!imageData) continue;
+
+          // Scale image to fit within one column, cap height so tall
+          // receipts don't dominate a whole page
+          let w = colWidth;
+          let h = colWidth * 1.3; // fallback ratio
+          try {
+            const props = doc.getImageProperties(imageData.dataUri);
+            const maxH = 320; // cap column image height
+            const ratio = Math.min(colWidth / props.width, maxH / props.height);
+            w = props.width * ratio;
+            h = props.height * ratio;
+          } catch {
+            // keep fallback
+          }
+
+          images.push({
+            dataUri: imageData.dataUri,
+            w,
+            h,
+            format: attachment.mimetype === "image/png" ? "PNG" : "JPEG",
+          });
+        }
+
+        if (images.length === 0) continue; // no renderable images, skip group
+
+        // ─── Transaction header row ───
+        if (cursorY > pageHeight - margin - headerHeight - 80) {
           doc.addPage();
           cursorY = margin;
         }
@@ -249,7 +289,7 @@ export async function POST(request: Request) {
         doc.text(
           `${formatDate(tx.date)}  —  ${tx.code}  —  ${tx.description}`,
           margin + 8,
-          cursorY + 19,
+          cursorY + 17,
           { maxWidth: contentWidth - 150 }
         );
 
@@ -258,64 +298,61 @@ export async function POST(request: Request) {
             ? `Rp ${formatRp(tx.credit)}`
             : `Rp ${formatRp(tx.debit)}`;
         doc.setTextColor(...accentGreen);
-        doc.text(amountText, pageWidth - margin - 8, cursorY + 19, {
+        doc.text(amountText, pageWidth - margin - 8, cursorY + 17, {
           align: "right",
         });
 
-        cursorY += headerHeight + 10;
+        cursorY += headerHeight + rowLabelGap;
 
-        // Images directly under the header
-        for (const attachment of tx.attachments) {
-          const isImage = attachment.mimetype.startsWith("image/");
-          if (!isImage) continue; // skip non-image attachments entirely
+        // ─── Place images in a 2-column grid ───
+        let col = 0; // 0 = left, 1 = right
+        let rowMaxHeight = 0;
+        let rowStartY = cursorY;
 
-          const imageData = await fetchImageAsBase64(
-            attachment.url,
-            attachment.mimetype
-          );
-          if (!imageData) continue; // silently skip failed images
-
-          const maxImgWidth = contentWidth;
-          const maxImgHeight = 380;
-
-          let imgWidth = maxImgWidth;
-          let imgHeight = maxImgHeight * 0.6;
-
-          try {
-            const imgProps = doc.getImageProperties(imageData.dataUri);
-            const ratio = Math.min(
-              maxImgWidth / imgProps.width,
-              maxImgHeight / imgProps.height
-            );
-            imgWidth = imgProps.width * ratio;
-            imgHeight = imgProps.height * ratio;
-          } catch {
-            // keep fallback dimensions
+        for (const img of images) {
+          // If starting a new row (left column), check page space
+          if (col === 0) {
+            if (rowStartY + img.h > pageHeight - margin) {
+              doc.addPage();
+              rowStartY = margin;
+            }
+            rowMaxHeight = 0;
           }
 
-          if (cursorY + imgHeight + 10 > pageHeight - margin) {
-            doc.addPage();
-            cursorY = margin;
-          }
+          const x = margin + col * (colWidth + gap);
+          // Center the image horizontally within its column
+          const xOffset = (colWidth - img.w) / 2;
 
           try {
-            const imgFormat =
-              attachment.mimetype === "image/png" ? "PNG" : "JPEG";
             doc.addImage(
-              imageData.dataUri,
-              imgFormat,
-              margin,
-              cursorY,
-              imgWidth,
-              imgHeight
+              img.dataUri,
+              img.format,
+              x + xOffset,
+              rowStartY,
+              img.w,
+              img.h
             );
-            cursorY += imgHeight + 12;
           } catch {
-            // skip images jsPDF can't render
+            // skip unrenderable image
+          }
+
+          rowMaxHeight = Math.max(rowMaxHeight, img.h);
+
+          if (col === 0) {
+            col = 1; // move to right column, same row
+          } else {
+            // completed a row, advance down
+            col = 0;
+            rowStartY += rowMaxHeight + gap;
           }
         }
 
-        cursorY += 8;
+        // If the last image landed in the left column, advance past its row
+        if (col === 1) {
+          rowStartY += rowMaxHeight + gap;
+        }
+
+        cursorY = rowStartY + 10; // spacing before next transaction
       }
     }
 
