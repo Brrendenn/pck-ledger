@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CreateInvoiceDialog } from "@/components/invoice/create-invoice-dialog";
 import { generateInvoiceExcel } from "@/lib/fill-invoice-template";
+import { AttachmentDialog } from "@/components/attachments";
 
 const formatNumber = (val: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -257,6 +258,12 @@ export default function InvoicesPage() {
                     </td>
                     <td className="py-4 pl-4 pr-2 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <AttachmentDialog
+                          entityId={inv.id}
+                          entityType="invoice"
+                          entityLabel={inv.invoiceNo}
+                          triggerSize="sm"
+                        />
                         <Button
                           variant="outline"
                           size="sm"

@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LedgerEntry } from "./columns";
+import { AttachmentManager } from "@/components/attachments";
 
 const editFormSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -88,7 +89,7 @@ export function EditTransactionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-112.5">
+      <DialogContent className="sm:max-w-175 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Transaction</DialogTitle>
           <DialogDescription>
@@ -259,6 +260,15 @@ export function EditTransactionDialog({
             </Button>
           </div>
         </form>
+
+        {/* Attachments Section */}
+        <div className="border-t pt-6 mt-6">
+          <AttachmentManager
+            entityId={transaction.id}
+            entityType="transaction"
+            autoLoad={open}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -21,6 +21,7 @@ import { useSession } from "next-auth/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ExportButtons } from "./export-buttons";
+import { ExportProofButton } from "./export-proof-button";
 import { LedgerEntry } from "./columns";
 import {
   AlertDialog,
@@ -284,6 +285,13 @@ export function DataTable({
           )}
 
           <ExportButtons data={visibleExportData} sheetName={sheetName} />
+          <ExportProofButton
+            sheetId={sheetId}
+            sheetName={sheetName}
+            startDate={startDate || undefined}
+            endDate={endDate || undefined}
+            selectedIds={selectedIds.length > 0 ? selectedIds : undefined}
+          />
         </div>
       </div>
 

@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CreatePODialog } from "@/components/purchase-orders/create-po-dialog";
+import { AttachmentDialog } from "@/components/attachments";
 
 export default function PurchaseOrdersPage() {
   const [search, setSearch] = useState("");
@@ -196,6 +197,14 @@ export default function PurchaseOrdersPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        {/* Attachments Button */}
+                        <AttachmentDialog
+                          entityId={po.id}
+                          entityType="purchase-order"
+                          entityLabel={po.poNumber}
+                          triggerSize="sm"
+                        />
+
                         {/* Excel Export Button */}
                         <Button
                           type="button"
