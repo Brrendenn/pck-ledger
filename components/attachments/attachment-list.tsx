@@ -1,9 +1,16 @@
 // components/attachments/attachment-list.tsx
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Trash2, Download, FileText, Image as ImageIcon, Loader2, ExternalLink } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import {
+  Trash2,
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  ExternalLink,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,7 +20,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 
 interface Attachment {
   id: string;
@@ -28,7 +35,7 @@ interface AttachmentListProps {
   attachments: Attachment[];
   onDelete?: (attachmentId: string) => void;
   entityId: string;
-  entityType: 'transaction' | 'purchase-order' | 'invoice';
+  entityType: "transaction" | "purchase-order" | "invoice";
   readOnly?: boolean;
 }
 
@@ -41,31 +48,32 @@ export function AttachmentList({
 }: AttachmentListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedAttachment, setSelectedAttachment] = useState<Attachment | null>(null);
+  const [selectedAttachment, setSelectedAttachment] =
+    useState<Attachment | null>(null);
 
   const getApiEndpoint = () => {
     switch (entityType) {
-      case 'transaction':
+      case "transaction":
         return `/api/transactions/${entityId}/attachments`;
-      case 'purchase-order':
+      case "purchase-order":
         return `/api/purchase-orders/${entityId}/attachments`;
-      case 'invoice':
+      case "invoice":
         return `/api/invoices/${entityId}/attachments`;
       default:
-        throw new Error('Invalid entity type');
+        throw new Error("Invalid entity type");
     }
   };
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return "0 Bytes";
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB'];
+    const sizes = ["Bytes", "KB", "MB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
   const isImage = (mimetype: string) => {
-    return mimetype.startsWith('image/');
+    return mimetype.startsWith("image/");
   };
 
   const handleDeleteClick = (attachment: Attachment) => {
@@ -80,17 +88,17 @@ export function AttachmentList({
     try {
       const response = await fetch(
         `${getApiEndpoint()}?attachmentId=${selectedAttachment.id}`,
-        { method: 'DELETE' }
+        { method: "DELETE" },
       );
 
       if (!response.ok) {
-        throw new Error('Failed to delete attachment');
+        throw new Error("Failed to delete attachment");
       }
 
       onDelete?.(selectedAttachment.id);
     } catch (error) {
-      console.error('Delete error:', error);
-      alert('Failed to delete attachment');
+      console.error("Delete error:", error);
+      alert("Failed to delete attachment");
     } finally {
       setDeletingId(null);
       setDeleteDialogOpen(false);
@@ -99,7 +107,7 @@ export function AttachmentList({
   };
 
   const handleDownload = (attachment: Attachment) => {
-    window.open(attachment.url, '_blank');
+    window.open(`/api/attachments/${attachment.id}`, "_blank");
   };
 
   if (attachments.length === 0) {
@@ -122,16 +130,15 @@ export function AttachmentList({
             <div className="bg-muted h-40 flex items-center justify-center relative group">
               {isImage(attachment.mimetype) ? (
                 <img
-                  src={attachment.url}
+                  src={`/api/attachments/${attachment.id}`}
                   alt={attachment.filename}
-                  className="w-full h-full object-cover"
                 />
               ) : (
                 <FileText className="h-16 w-16 text-muted-foreground" />
               )}
               {/* Overlay on hover */}
               <a
-                href={attachment.url}
+                href={`/api/attachments/${attachment.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
@@ -144,7 +151,10 @@ export function AttachmentList({
             <div className="p-3 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" title={attachment.filename}>
+                  <p
+                    className="text-sm font-medium truncate"
+                    title={attachment.filename}
+                  >
                     {attachment.filename}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -190,12 +200,16 @@ export function AttachmentList({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Attachment</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{selectedAttachment?.filename}"? This action cannot be undone.
+              Are you sure you want to delete "{selectedAttachment?.filename}"?
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
