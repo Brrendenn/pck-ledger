@@ -1,6 +1,6 @@
 // app/api/transactions/export-proof/route.ts
 // Generates a "Proof of Transaction" PDF for a date range within a sheet.
-// Includes a cover page, transaction summary table, and proof pages with embedded images.
+// Layout: transaction summary table, then attachment images grouped under each transaction.
 
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
@@ -141,16 +141,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Calculate totals and running balance
-    let totalDebit = 0;
-    let totalCredit = 0;
+    // Calculate running balance
     let runningBalance = 0;
 
     const rows = transactions.map((t) => {
       const debit = Number(t.debit) || 0;
       const credit = Number(t.credit) || 0;
-      totalDebit += debit;
-      totalCredit += credit;
 
       if (isExpenseOnly) {
         runningBalance += credit;
@@ -169,6 +165,9 @@ export async function POST(request: Request) {
 
     const transactionsWithAttachments = rows.filter((r) => r.attachmentCount > 0);
 
+    const periodStart = data.startDate || formatDateShort(transactions[0].date);
+    const periodEnd = data.endDate || formatDateShort(transactions[transactions.length - 1].date);
+
     // ─── PDF GENERATION ───────────────────────────────────────
 
     const doc = new jsPDF("p", "pt", "a4");
@@ -179,138 +178,37 @@ export async function POST(request: Request) {
 
     // Colors
     const darkGray: [number, number, number] = [39, 39, 42]; // zinc-800
-    const mediumGray: [number, number, number] = [113, 113, 122]; // zinc-500
     const lightGray: [number, number, number] = [244, 244, 245]; // zinc-100
     const accentGreen: [number, number, number] = [22, 163, 74]; // green-600
 
-    // ─── COVER PAGE ───────────────────────────────────────────
-
-    // Company name
-    doc.setFontSize(10);
-    doc.setTextColor(...mediumGray);
-    doc.text(sheet.project.company || "PT PERDANA CIPTA KREASINDO", margin, margin + 20);
-
-    // Title
-    doc.setFontSize(22);
-    doc.setTextColor(...darkGray);
-    doc.text("Bukti Transaksi", margin, margin + 50);
-
-    // Subtitle: project name
-    doc.setFontSize(14);
-    doc.setTextColor(...mediumGray);
-    doc.text(sheet.project.name, margin, margin + 72);
-
-    // Sheet name
-    doc.setFontSize(11);
-    doc.text(`Sheet: ${sheet.name}`, margin, margin + 92);
-
-    // Period
-    const periodStart = data.startDate || formatDateShort(transactions[0].date);
-    const periodEnd = data.endDate || formatDateShort(transactions[transactions.length - 1].date);
-    doc.text(`Periode: ${periodStart}  —  ${periodEnd}`, margin, margin + 112);
-
-    // Divider line
-    const dividerY = margin + 135;
-    doc.setDrawColor(...lightGray);
-    doc.setLineWidth(1);
-    doc.line(margin, dividerY, pageWidth - margin, dividerY);
-
-    // Summary stats
-    const statsY = dividerY + 30;
-    doc.setFontSize(10);
-    doc.setTextColor(...mediumGray);
-
-    const statsLeft = [
-      ["Total Transaksi", `${transactions.length}`],
-      ["Transaksi dgn Bukti", `${transactionsWithAttachments.length}`],
-    ];
-    const statsRight = [
-      ["Total Debit", `Rp ${formatRp(totalDebit)}`],
-      ["Total Credit", `Rp ${formatRp(totalCredit)}`],
-    ];
-
-    statsLeft.forEach(([label, value], i) => {
-      const y = statsY + i * 20;
-      doc.setTextColor(...mediumGray);
-      doc.text(label, margin, y);
-      doc.setTextColor(...darkGray);
-      doc.setFont("helvetica", "bold");
-      doc.text(value, margin + 140, y);
-      doc.setFont("helvetica", "normal");
-    });
-
-    statsRight.forEach(([label, value], i) => {
-      const y = statsY + i * 20;
-      doc.setTextColor(...mediumGray);
-      doc.text(label, pageWidth / 2 + 20, y);
-      doc.setTextColor(...darkGray);
-      doc.setFont("helvetica", "bold");
-      doc.text(value, pageWidth / 2 + 160, y);
-      doc.setFont("helvetica", "normal");
-    });
-
-    // Generated timestamp
-    doc.setFontSize(8);
-    doc.setTextColor(...mediumGray);
-    doc.text(
-      `Dibuat: ${new Date().toLocaleString("id-ID")}`,
-      margin,
-      pageHeight - margin
-    );
-
-    // ─── SUMMARY TABLE ────────────────────────────────────────
-
-    doc.addPage();
-
-    doc.setFontSize(14);
-    doc.setTextColor(...darkGray);
-    doc.text("Ringkasan Transaksi", margin, margin + 20);
-
-    doc.setFontSize(9);
-    doc.setTextColor(...mediumGray);
-    doc.text(
-      `${transactions.length} transaksi  •  ${transactionsWithAttachments.length} dengan bukti lampiran`,
-      margin,
-      margin + 38
-    );
+    // ─── SUMMARY TABLE (first page) ───────────────────────────
 
     const tableHeaders = isExpenseOnly
-      ? [["Tanggal", "Kode", "Keterangan", "Jumlah (Rp)", "Saldo (Rp)", "📎"]]
-      : [["Tanggal", "Kode", "Keterangan", "Debit (Rp)", "Credit (Rp)", "Saldo (Rp)", "📎"]];
+      ? [["Tanggal", "Kode", "Keterangan", "Jumlah (Rp)", "Saldo (Rp)"]]
+      : [["Tanggal", "Kode", "Keterangan", "Debit (Rp)", "Credit (Rp)", "Saldo (Rp)"]];
 
     const tableRows = rows.map((r) => {
-      const base = [
-        formatDate(r.date),
-        r.code,
-        r.description,
-      ];
-
+      const base = [formatDate(r.date), r.code, r.description];
       if (isExpenseOnly) {
         base.push(formatRp(r.credit), formatRp(r.saldo));
       } else {
         base.push(formatRp(r.debit), formatRp(r.credit), formatRp(r.saldo));
       }
-
-      base.push(r.attachmentCount > 0 ? `${r.attachmentCount}` : "");
       return base;
     });
 
-    const moneyColStart = isExpenseOnly ? 3 : 3;
-    const moneyColEnd = isExpenseOnly ? 4 : 5;
     const colStyles: Record<number, { halign: "right" | "left" | "center" }> = {};
-    for (let c = moneyColStart; c <= moneyColEnd; c++) {
+    for (let c = 3; c <= (isExpenseOnly ? 4 : 5); c++) {
       colStyles[c] = { halign: "right" };
     }
-    // Attachment count column centered
-    colStyles[isExpenseOnly ? 5 : 6] = { halign: "center" };
 
     autoTable(doc, {
-      startY: margin + 50,
+      startY: margin,
       head: tableHeaders,
       body: tableRows,
       theme: "grid",
       styles: {
-        fontSize: 7.5,
+        fontSize: 8,
         font: "helvetica",
         cellPadding: 4,
         lineColor: [228, 228, 231] as [number, number, number],
@@ -320,168 +218,70 @@ export async function POST(request: Request) {
         fillColor: darkGray,
         textColor: [255, 255, 255] as [number, number, number],
         fontStyle: "bold",
-        fontSize: 7.5,
+        fontSize: 8,
       },
       columnStyles: colStyles,
       margin: { left: margin, right: margin },
-      didDrawPage: (data) => {
-        // Page footer
-        doc.setFontSize(7);
-        doc.setTextColor(...mediumGray);
-        const pageNum = doc.getNumberOfPages();
-        doc.text(
-          `Halaman ${pageNum}`,
-          pageWidth - margin,
-          pageHeight - 20,
-          { align: "right" }
-        );
-      },
     });
 
-    // ─── PROOF PAGES ──────────────────────────────────────────
+    // ─── ATTACHMENT IMAGES (grouped under each transaction) ───
 
     if (transactionsWithAttachments.length > 0) {
       doc.addPage();
-
-      doc.setFontSize(14);
-      doc.setTextColor(...darkGray);
-      doc.text("Bukti Lampiran", margin, margin + 20);
-
-      doc.setFontSize(9);
-      doc.setTextColor(...mediumGray);
-      doc.text(
-        `${transactionsWithAttachments.length} transaksi dengan bukti foto/dokumen`,
-        margin,
-        margin + 38
-      );
-
-      let cursorY = margin + 60;
-      let proofIndex = 0;
+      let cursorY = margin;
 
       for (const tx of transactionsWithAttachments) {
-        proofIndex++;
+        // Compact header row for the transaction
+        const headerHeight = 30;
 
-        // Check if we need a new page for this transaction header
-        if (cursorY > pageHeight - 200) {
+        // Ensure header + at least a bit of the first image fit
+        if (cursorY > pageHeight - 160) {
           doc.addPage();
-          cursorY = margin + 20;
+          cursorY = margin;
         }
 
-        // ─── Transaction header ───
-        // Light background box
         doc.setFillColor(...lightGray);
-        doc.roundedRect(margin, cursorY, contentWidth, 52, 4, 4, "F");
+        doc.rect(margin, cursorY, contentWidth, headerHeight, "F");
 
-        // Transaction number and date
-        doc.setFontSize(10);
+        doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...darkGray);
         doc.text(
-          `#${proofIndex}  —  ${formatDate(tx.date)}  —  ${tx.code}`,
-          margin + 10,
-          cursorY + 18
+          `${formatDate(tx.date)}  —  ${tx.code}  —  ${tx.description}`,
+          margin + 8,
+          cursorY + 19,
+          { maxWidth: contentWidth - 150 }
         );
 
-        // Description
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(...mediumGray);
-
-        // Truncate long descriptions
-        const descText =
-          tx.description.length > 80
-            ? tx.description.substring(0, 77) + "..."
-            : tx.description;
-        doc.text(descText, margin + 10, cursorY + 33);
-
-        // Amount on the right
-        const amountText = tx.credit > 0
-          ? `Credit: Rp ${formatRp(tx.credit)}`
-          : `Debit: Rp ${formatRp(tx.debit)}`;
-
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "bold");
+        const amountText =
+          tx.credit > 0
+            ? `Rp ${formatRp(tx.credit)}`
+            : `Rp ${formatRp(tx.debit)}`;
         doc.setTextColor(...accentGreen);
-        doc.text(amountText, pageWidth - margin - 10, cursorY + 18, {
+        doc.text(amountText, pageWidth - margin - 8, cursorY + 19, {
           align: "right",
         });
 
-        // Attachment count
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(...mediumGray);
-        doc.text(
-          `${tx.attachments.length} lampiran`,
-          pageWidth - margin - 10,
-          cursorY + 33,
-          { align: "right" }
-        );
+        cursorY += headerHeight + 10;
 
-        cursorY += 62;
-
-        // ─── Attachment images ───
+        // Images directly under the header
         for (const attachment of tx.attachments) {
           const isImage = attachment.mimetype.startsWith("image/");
+          if (!isImage) continue; // skip non-image attachments entirely
 
-          if (!isImage) {
-            // PDF or non-image attachment: show reference only
-            if (cursorY > pageHeight - 60) {
-              doc.addPage();
-              cursorY = margin + 20;
-            }
-
-            doc.setFontSize(8);
-            doc.setTextColor(...mediumGray);
-            doc.text(
-              `📄 ${attachment.filename}  —  ${(attachment.filesize / 1024).toFixed(0)} KB  —  ${attachment.mimetype}`,
-              margin + 10,
-              cursorY + 10
-            );
-            doc.setFontSize(7);
-            doc.text(
-              "(Dokumen PDF — lihat terpisah di aplikasi)",
-              margin + 10,
-              cursorY + 22
-            );
-            cursorY += 35;
-            continue;
-          }
-
-          // Fetch image from Blob
           const imageData = await fetchImageAsBase64(
             attachment.url,
             attachment.mimetype
           );
+          if (!imageData) continue; // silently skip failed images
 
-          if (!imageData) {
-            // Failed to fetch — show placeholder
-            if (cursorY > pageHeight - 50) {
-              doc.addPage();
-              cursorY = margin + 20;
-            }
+          const maxImgWidth = contentWidth;
+          const maxImgHeight = 380;
 
-            doc.setFontSize(8);
-            doc.setTextColor(200, 50, 50);
-            doc.text(
-              `⚠ Gagal memuat: ${attachment.filename}`,
-              margin + 10,
-              cursorY + 10
-            );
-            cursorY += 25;
-            continue;
-          }
-
-          // Calculate image dimensions to fit within content area
-          // Max image width: contentWidth - 20 (padding), max height: 340pt
-          const maxImgWidth = contentWidth - 20;
-          const maxImgHeight = 340;
-
-          // We need actual dimensions — extract from the image
           let imgWidth = maxImgWidth;
-          let imgHeight = maxImgHeight * 0.6; // default fallback aspect ratio
+          let imgHeight = maxImgHeight * 0.6;
 
           try {
-            // Try to get image properties from jsPDF
             const imgProps = doc.getImageProperties(imageData.dataUri);
             const ratio = Math.min(
               maxImgWidth / imgProps.width,
@@ -490,71 +290,33 @@ export async function POST(request: Request) {
             imgWidth = imgProps.width * ratio;
             imgHeight = imgProps.height * ratio;
           } catch {
-            // Fallback to default dimensions
+            // keep fallback dimensions
           }
 
-          // Check if image fits on current page
-          if (cursorY + imgHeight + 30 > pageHeight - margin) {
+          if (cursorY + imgHeight + 10 > pageHeight - margin) {
             doc.addPage();
-            cursorY = margin + 20;
+            cursorY = margin;
           }
 
-          // Draw image
           try {
-            const imgFormat = attachment.mimetype === "image/png" ? "PNG" : "JPEG";
+            const imgFormat =
+              attachment.mimetype === "image/png" ? "PNG" : "JPEG";
             doc.addImage(
               imageData.dataUri,
               imgFormat,
-              margin + 10,
+              margin,
               cursorY,
               imgWidth,
               imgHeight
             );
-            cursorY += imgHeight + 8;
+            cursorY += imgHeight + 12;
           } catch {
-            doc.setFontSize(8);
-            doc.setTextColor(200, 50, 50);
-            doc.text(
-              `⚠ Format tidak didukung: ${attachment.filename}`,
-              margin + 10,
-              cursorY + 10
-            );
-            cursorY += 25;
+            // skip images jsPDF can't render
           }
-
-          // Filename caption
-          doc.setFontSize(7);
-          doc.setTextColor(...mediumGray);
-          doc.text(
-            `${attachment.filename}  •  ${(attachment.filesize / 1024).toFixed(0)} KB`,
-            margin + 10,
-            cursorY
-          );
-          cursorY += 20;
         }
 
-        // Separator line between transactions
-        if (cursorY < pageHeight - 40) {
-          doc.setDrawColor(228, 228, 231);
-          doc.setLineWidth(0.5);
-          doc.line(margin, cursorY, pageWidth - margin, cursorY);
-          cursorY += 15;
-        }
+        cursorY += 8;
       }
-    }
-
-    // ─── Add page numbers to all pages ────────────────────────
-    const totalPages = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(7);
-      doc.setTextColor(...mediumGray);
-      doc.text(
-        `Halaman ${i} / ${totalPages}`,
-        pageWidth - margin,
-        pageHeight - 20,
-        { align: "right" }
-      );
     }
 
     // ─── Output ───────────────────────────────────────────────
