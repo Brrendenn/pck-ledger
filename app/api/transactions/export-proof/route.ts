@@ -46,7 +46,6 @@ async function fetchImageAsBase64(
   mimetype: string
 ): Promise<{ dataUri: string; width: number; height: number } | null> {
   try {
-    // Try authenticated Blob SDK first (works for private stores)
     let buffer: ArrayBuffer;
 
     try {
@@ -54,7 +53,6 @@ async function fetchImageAsBase64(
       if (!result || result.statusCode !== 200 || !result.stream) {
         throw new Error("Blob get() returned no stream");
       }
-      // Consume the ReadableStream into a buffer
       const reader = result.stream.getReader();
       const chunks: Uint8Array[] = [];
       while (true) {
@@ -78,9 +76,6 @@ async function fetchImageAsBase64(
     }
 
     const base64 = Buffer.from(buffer).toString("base64");
-
-    // Use image/jpeg for the data URI regardless of original type,
-    // since jsPDF handles JPEG most reliably
     const safeType = mimetype === "image/png" ? "image/png" : "image/jpeg";
     const dataUri = `data:${safeType};base64,${base64}`;
 
@@ -141,9 +136,36 @@ export async function POST(request: Request) {
       );
     }
 
-    // Calculate running balance
-    let runningBalance = 0;
+    // ─── 1. CALCULATE SALDO AWAL (OPENING BALANCE) ───────────────
+    // Sum all transactions in this sheet strictly prior to the first transaction displayed
+    const firstTx = transactions[0];
 
+    const priorAgg = await prisma.transaction.aggregate({
+      where: {
+        sheetId: data.sheetId,
+        OR: [
+          { date: { lt: firstTx.date } },
+          {
+            date: firstTx.date,
+            createdAt: { lt: firstTx.createdAt },
+          },
+        ],
+      },
+      _sum: {
+        debit: true,
+        credit: true,
+      },
+    });
+
+    const priorDebit = Number(priorAgg._sum.debit) || 0;
+    const priorCredit = Number(priorAgg._sum.credit) || 0;
+
+    // Start with sheet initialBalance (if set) + prior transactions
+    let runningBalance =
+      (Number((sheet as any).initialBalance) || 0) +
+      (isExpenseOnly ? priorCredit : priorDebit - priorCredit);
+
+    // ─── 2. COMPUTE RUNNING BALANCES ─────────────────────────────
     const rows = transactions.map((t) => {
       const debit = Number(t.debit) || 0;
       const credit = Number(t.credit) || 0;
@@ -166,10 +188,10 @@ export async function POST(request: Request) {
     const transactionsWithAttachments = rows.filter((r) => r.attachmentCount > 0);
 
     const periodStart = data.startDate || formatDateShort(transactions[0].date);
-    const periodEnd = data.endDate || formatDateShort(transactions[transactions.length - 1].date);
+    const periodEnd =
+      data.endDate || formatDateShort(transactions[transactions.length - 1].date);
 
-    // ─── PDF GENERATION ───────────────────────────────────────
-
+    // ─── 3. PDF GENERATION ───────────────────────────────────────
     const doc = new jsPDF("p", "pt", "a4");
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -182,13 +204,18 @@ export async function POST(request: Request) {
     const accentGreen: [number, number, number] = [22, 163, 74]; // green-600
 
     // ─── SUMMARY TABLE (first page) ───────────────────────────
-
     const tableHeaders = isExpenseOnly
-      ? [["Tanggal", "Kode", "Keterangan", "Jumlah (Rp)", "Saldo (Rp)"]]
-      : [["Tanggal", "Kode", "Keterangan", "Debit (Rp)", "Credit (Rp)", "Saldo (Rp)"]];
+      ? [["Tanggal", "Kode", "Keterangan", "Kategori", "Jumlah (Rp)", "Saldo (Rp)"]]
+      : [["Tanggal", "Kode", "Keterangan", "Kategori", "Debit (Rp)", "Credit (Rp)", "Saldo (Rp)"]];
 
     const tableRows = rows.map((r) => {
-      const base = [formatDate(r.date), r.code, r.description];
+      const categoryText =
+        (typeof (r as any).category === "object" && (r as any).category !== null
+          ? (r as any).category.name
+          : (r as any).category) || "-";
+
+      const base = [formatDate(r.date), r.code, r.description, categoryText];
+
       if (isExpenseOnly) {
         base.push(formatRp(r.credit), formatRp(r.saldo));
       } else {
@@ -197,9 +224,18 @@ export async function POST(request: Request) {
       return base;
     });
 
-    const colStyles: Record<number, { halign: "right" | "left" | "center" }> = {};
-    for (let c = 3; c <= (isExpenseOnly ? 4 : 5); c++) {
-      colStyles[c] = { halign: "right" };
+    // Setup column alignment
+    const colStyles: Record<number, { halign: "right" | "left" | "center" }> = {
+      0: { halign: "center" }, // Tanggal
+      1: { halign: "center" }, // Kode
+      2: { halign: "left" },   // Keterangan
+      3: { halign: "left" },   // Kategori
+      4: { halign: "right" },  // Debit (or Jumlah)
+      5: { halign: "right" },  // Credit (or Saldo)
+    };
+
+    if (!isExpenseOnly) {
+      colStyles[6] = { halign: "right" }; // Saldo
     }
 
     autoTable(doc, {
@@ -224,12 +260,10 @@ export async function POST(request: Request) {
       margin: { left: margin, right: margin },
     });
 
-    // ─── ATTACHMENT IMAGES (2-column grid, grouped per transaction) ───
-
+    // ─── 4. ATTACHMENT IMAGES (2-column grid, grouped per transaction) ───
     if (transactionsWithAttachments.length > 0) {
       doc.addPage();
 
-      // Grid layout: 2 columns, images flow to fill space
       const gap = 12;
       const colWidth = (contentWidth - gap) / 2;
       const headerHeight = 26;
@@ -238,7 +272,6 @@ export async function POST(request: Request) {
       let cursorY = margin;
 
       for (const tx of transactionsWithAttachments) {
-        // ─── Collect this transaction's usable images first ───
         const images: { dataUri: string; w: number; h: number; format: string }[] = [];
 
         for (const attachment of tx.attachments) {
@@ -250,19 +283,15 @@ export async function POST(request: Request) {
           );
           if (!imageData) continue;
 
-          // Scale image to fit within one column, cap height so tall
-          // receipts don't dominate a whole page
           let w = colWidth;
-          let h = colWidth * 1.3; // fallback ratio
+          let h = colWidth * 1.3;
           try {
             const props = doc.getImageProperties(imageData.dataUri);
-            const maxH = 320; // cap column image height
+            const maxH = 320;
             const ratio = Math.min(colWidth / props.width, maxH / props.height);
             w = props.width * ratio;
             h = props.height * ratio;
-          } catch {
-            // keep fallback
-          }
+          } catch {}
 
           images.push({
             dataUri: imageData.dataUri,
@@ -272,9 +301,8 @@ export async function POST(request: Request) {
           });
         }
 
-        if (images.length === 0) continue; // no renderable images, skip group
+        if (images.length === 0) continue;
 
-        // ─── Transaction header row ───
         if (cursorY > pageHeight - margin - headerHeight - 80) {
           doc.addPage();
           cursorY = margin;
@@ -304,13 +332,11 @@ export async function POST(request: Request) {
 
         cursorY += headerHeight + rowLabelGap;
 
-        // ─── Place images in a 2-column grid ───
-        let col = 0; // 0 = left, 1 = right
+        let col = 0;
         let rowMaxHeight = 0;
         let rowStartY = cursorY;
 
         for (const img of images) {
-          // If starting a new row (left column), check page space
           if (col === 0) {
             if (rowStartY + img.h > pageHeight - margin) {
               doc.addPage();
@@ -320,7 +346,6 @@ export async function POST(request: Request) {
           }
 
           const x = margin + col * (colWidth + gap);
-          // Center the image horizontally within its column
           const xOffset = (colWidth - img.w) / 2;
 
           try {
@@ -332,34 +357,28 @@ export async function POST(request: Request) {
               img.w,
               img.h
             );
-          } catch {
-            // skip unrenderable image
-          }
+          } catch {}
 
           rowMaxHeight = Math.max(rowMaxHeight, img.h);
 
           if (col === 0) {
-            col = 1; // move to right column, same row
+            col = 1;
           } else {
-            // completed a row, advance down
             col = 0;
             rowStartY += rowMaxHeight + gap;
           }
         }
 
-        // If the last image landed in the left column, advance past its row
         if (col === 1) {
           rowStartY += rowMaxHeight + gap;
         }
 
-        cursorY = rowStartY + 10; // spacing before next transaction
+        cursorY = rowStartY + 10;
       }
     }
 
     // ─── Output ───────────────────────────────────────────────
-
     const pdfBuffer = doc.output("arraybuffer");
-
     const safeName = sheet.name.replace(/[^a-zA-Z0-9_-]/g, "_");
     const filename = `Bukti_Transaksi_${safeName}_${periodStart}_${periodEnd}.pdf`;
 
