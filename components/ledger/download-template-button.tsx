@@ -2,18 +2,33 @@
 "use client";
 
 import * as XLSX from "xlsx";
+import { useSession } from "next-auth/react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface DownloadTemplateButtonProps {
   sheetName: string;
   isExpenseOnly?: boolean;
+  isAdmin?: boolean; // Optional prop if passed directly from a parent component
 }
 
 export function DownloadTemplateButton({
   sheetName,
   isExpenseOnly = false,
+  isAdmin: directAdminProp,
 }: DownloadTemplateButtonProps) {
+  const { data: session } = useSession();
+
+  // Check if current user is ADMIN
+  const isAdmin =
+    directAdminProp ??
+    (session?.user as { role?: string } | undefined)?.role === "ADMIN";
+
+  // If not ADMIN (e.g. CLIENT), do not render the button
+  if (!isAdmin) {
+    return null;
+  }
+
   const handleDownload = () => {
     const today = new Date().toISOString().split("T")[0];
 
