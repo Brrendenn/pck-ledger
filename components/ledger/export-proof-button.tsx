@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +12,7 @@ interface ExportProofButtonProps {
   startDate?: string; // active date filter YYYY-MM-DD
   endDate?: string;
   selectedIds?: string[]; // selected row IDs, empty = all filtered
+  isAdmin?: boolean; // Optional prop if passed directly from a server component
 }
 
 export function ExportProofButton({
@@ -19,9 +21,19 @@ export function ExportProofButton({
   startDate,
   endDate,
   selectedIds,
+  isAdmin: directAdminProp,
 }: ExportProofButtonProps) {
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if current user is ADMIN (from prop or NextAuth session)
+  const isAdmin = directAdminProp ?? (session?.user?.role === "ADMIN");
+
+  // If not ADMIN (e.g. CLIENT), do not render the button
+  if (!isAdmin) {
+    return null;
+  }
 
   const handleExport = async () => {
     setLoading(true);
@@ -55,7 +67,7 @@ export function ExportProofButton({
       const a = document.createElement("a");
       a.href = url;
 
-      // Build a clean filename
+      // Build clean filename
       const safeName = sheetName.replace(/[^a-zA-Z0-9_-]/g, "_");
       const period = [startDate, endDate].filter(Boolean).join("_");
       a.download = period

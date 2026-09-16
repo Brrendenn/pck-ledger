@@ -9,6 +9,7 @@ import { get as getBlob } from "@vercel/blob";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { z } from "zod";
+import { requireAdmin } from "@/lib/auth-guard";
 
 const requestSchema = z.object({
   sheetId: z.string().min(1),
@@ -86,6 +87,9 @@ async function fetchImageAsBase64(
 }
 
 export async function POST(request: Request) {
+
+  const guard = await requireAdmin();
+  if (!guard.authorized) return guard.response;
   try {
     const session = await auth();
     if (!session?.user) {
