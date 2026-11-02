@@ -88,16 +88,32 @@ export function DataTable({
   }, [data]);
 
   const filteredData = useMemo(() => {
+    const query = globalFilter.trim().toLowerCase();
+
     return data.filter((item) => {
       const itemDate = new Date(item.date).toISOString().split("T")[0];
 
       if (startDate && itemDate < startDate) return false;
       if (endDate && itemDate > endDate) return false;
-      if (selectedCode !== "ALL" && item.code !== selectedCode) return false;
+      if (selectedCode !== "ALL" && item.code?.trim() !== selectedCode) return false;
+
+      if (query !== "") {
+        const matchDescription = item.description
+          ?.toLowerCase()
+          .includes(query);
+        const matchCode = item.code?.toLowerCase().includes(query);
+        const matchCategory = (item as any).category
+          ?.toLowerCase()
+          .includes(query);
+
+        if (!matchDescription && !matchCode && !matchCategory) {
+          return false;
+        }
+      }
 
       return true;
     });
-  }, [data, startDate, endDate, selectedCode]);
+  }, [data, startDate, endDate, selectedCode, globalFilter]);
 
   useEffect(() => {
     const isNewSheet = lastSheetIdRef.current !== sheetId;
@@ -122,7 +138,6 @@ export function DataTable({
     state: {
       sorting,
       columnFilters,
-      globalFilter,
       rowSelection,
       pagination,
     },
@@ -132,10 +147,6 @@ export function DataTable({
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: (val) => {
-      setGlobalFilter(val);
-      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -195,6 +206,11 @@ export function DataTable({
     setEndDate("");
     setSelectedCode("ALL");
     setColumnFilters([]);
+    const lastPageIndex = Math.max(
+      0,
+      Math.ceil(data.length / pagination.pageSize) - 1
+    );
+    setPagination((prev) => ({ ...prev, pageIndex: lastPageIndex }));
   };
 
   const visibleExportData = table
@@ -211,7 +227,22 @@ export function DataTable({
             <Input
               placeholder="Search description..."
               value={globalFilter ?? ""}
-              onChange={(e) => setGlobalFilter(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setGlobalFilter(val);
+                if (val.trim() === "") {
+                  const lastPageIndex = Math.max(
+                    0,
+                    Math.ceil(data.length / pagination.pageSize) - 1
+                  );
+                  setPagination((prev) => ({
+                    ...prev,
+                    pageIndex: lastPageIndex,
+                  }));
+                } else {
+                  setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+                }
+              }}
               className="pl-8 h-9 text-xs"
             />
           </div>
